@@ -8,23 +8,29 @@ PROYECTO_GCP <- "capable-boulder-511318-c7"
 # Assets del Code Editor; si no coincide, la capa de límites no se mostrará)
 RUTA_LIMITES <- "projects/capable-boulder-511318-c7/assets/DEP_PERU"
 
+# Objeto de Earth Engine: se crea cuando se abre el visor (no al arrancar la
+# app), para que el servidor no agote el tiempo de arranque.
+ee <- NULL
+gee_listo <- FALSE
+
 # Conexión a Earth Engine:
 # - En la nube: usa GEE_SA_EMAIL + GEE_KEY_JSON (contenido de la clave)
 # - En tu PC:   usa GEE_SA_EMAIL + GEE_KEY_FILE (ruta del archivo de clave)
 # - Sin variables: usa tu sesión personal de Earth Engine
 inicializar_gee <- function() {
+  message("Earth Engine: importando librería")
   ee_py  <- reticulate::import("ee")
   correo <- Sys.getenv("GEE_SA_EMAIL")
   json   <- Sys.getenv("GEE_KEY_JSON")
   clave  <- Sys.getenv("GEE_KEY_FILE")
-  
+
   cred <- NULL
   if (nzchar(correo) && nzchar(json)) {
     cred <- ee_py$ServiceAccountCredentials(correo, key_data = json)
   } else if (nzchar(correo) && nzchar(clave)) {
     cred <- ee_py$ServiceAccountCredentials(correo, clave)
   }
-  
+
   if (!is.null(cred)) {
     message("Earth Engine: usando cuenta de servicio")
     ee_py$Initialize(credentials = cred, project = PROYECTO_GCP)
@@ -32,10 +38,17 @@ inicializar_gee <- function() {
     message("Earth Engine: usando sesión personal")
     ee_py$Initialize(project = PROYECTO_GCP)
   }
+  message("Earth Engine: conexión lista")
   ee_py
 }
 
-ee <- inicializar_gee()
+asegurar_gee <- function() {
+  if (!gee_listo) {
+    ee <<- inicializar_gee()
+    gee_listo <<- TRUE
+  }
+  invisible(TRUE)
+}
 
 ui <- fluidPage(
   title = "Visor SENAMHI",
@@ -64,34 +77,34 @@ ui <- fluidPage(
                     border-color:#2a7fd4;}
     .mapa {flex:1; height:100%;}
   "))),
-  
+
   div(class = "cabecera",
       tags$img(src = "logos.png", height = 50),
       h3("Visor de monitoreo agrometeorológico")),
-  
+
   div(class = "contenedor",
       div(class = "panel-lateral",
           div(class = "etiqueta-temas", "TEMAS"),
-          
+
           tags$details(open = NA,
-                       tags$summary("MONITOREO"),
-                       div(class = "contenido",
-                           radioButtons("capa", "Capa",
-                                        choices = c("Precipitación acumulada (CHIRPS)" = "pp",
-                                                    "NDVI (MODIS)" = "ndvi")),
-                           dateRangeInput("fechas", "Rango de fechas",
-                                          start = Sys.Date() - 30,
-                                          end   = Sys.Date() - 5,
-                                          language = "es", separator = " a ")
-                       )
+            tags$summary("MONITOREO"),
+            div(class = "contenido",
+              radioButtons("capa", "Capa",
+                choices = c("Precipitación acumulada (CHIRPS)" = "pp",
+                            "NDVI (MODIS)" = "ndvi")),
+              dateRangeInput("fechas", "Rango de fechas",
+                start = Sys.Date() - 30,
+                end   = Sys.Date() - 5,
+                language = "es", separator = " a ")
+            )
           ),
-          
+
           tags$details(
             tags$summary("CAPAS Y VISUALIZACIÓN"),
             div(class = "contenido",
-                checkboxInput("limites", "Límites departamentales", TRUE),
-                sliderInput("opacidad", "Opacidad de la capa",
-                            min = 0.1, max = 1, value = 0.8, step = 0.1)
+              checkboxInput("limites", "Límites departamentales", TRUE),
+              sliderInput("opacidad", "Opacidad de la capa",
+                          min = 0.1, max = 1, value = 0.8, step = 0.1)
             )
           )
       ),
@@ -100,7 +113,20 @@ ui <- fluidPage(
 )
 
 server <- function(input, output, session) {
-  
+
+  # Conexión a Earth Engine al abrir el visor
+  gee_ok <- reactiveVal(FALSE)
+  observe({
+    tryCatch({
+      asegurar_gee()
+      gee_ok(TRUE)
+    }, error = function(e) {
+      message("Error al conectar con Earth Engine: ", conditionMessage(e))
+      showNotification("No se pudo conectar con Earth Engine.",
+                       type = "error", duration = NULL)
+    })
+  })
+
   # Mapa base (se dibuja una sola vez)
   output$mapa <- renderLeaflet({
     leaflet() |>
@@ -110,13 +136,13 @@ server <- function(input, output, session) {
       addLayersControl(baseGroups = c("Calles", "Satélite"),
                        position = "topright")
   })
-  
+
   # Capa de Earth Engine (se actualiza al cambiar capa, fechas u opacidad)
   observe({
-    req(input$capa, input$fechas)
+    req(gee_ok(), input$capa, input$fechas)
     ini <- as.Date(input$fechas[1])
     fin <- as.Date(input$fechas[2])
-    
+
     if (input$capa == "pp") {
       img <- ee$ImageCollection("UCSB-CHG/CHIRPS/DAILY")$
         filterDate(as.character(ini), as.character(fin + 1))$
@@ -139,9 +165,9 @@ server <- function(input, output, session) {
       etiquetas <- c("0", "0.23", "0.45", "0.68", "0.9")
       titulo <- "NDVI"
     }
-    
+
     url <- img$getMapId(vis)$tile_fetcher$url_format
-    
+
     leafletProxy("mapa") |>
       clearGroup("gee") |>
       removeControl("leyenda") |>
@@ -151,9 +177,10 @@ server <- function(input, output, session) {
                 labels = etiquetas, title = titulo,
                 opacity = 1, layerId = "leyenda")
   })
-  
+
   # Límites departamentales
   observe({
+    req(gee_ok())
     proxy <- leafletProxy("mapa") |> clearGroup("limites")
     if (isTRUE(input$limites)) {
       url <- tryCatch({
@@ -161,7 +188,7 @@ server <- function(input, output, session) {
           style(color = "#333333", fillColor = "#00000000", width = 1.5)$
           getMapId()$tile_fetcher$url_format
       }, error = function(e) NULL)
-      
+
       if (is.null(url)) {
         showNotification("No se pudo cargar la capa de límites. Revisa la ruta del asset.",
                          type = "warning")
