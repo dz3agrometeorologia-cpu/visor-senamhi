@@ -1061,6 +1061,63 @@ html, body {margin:0; padding:0; height:100%; overflow:hidden;
   .datepicker table tr td.day {height:30px; line-height:30px;}
   .datepicker table thead tr:first-child th {height:40px; font-size:12px;}
 }
+
+/* =====================================================================
+   AJUSTES V3: pastilla y leyenda translúcidas, menú azul fino,
+   menú lateral flotante también en PC
+   ===================================================================== */
+.filtros {background:linear-gradient(135deg, rgba(255,255,255,.80), rgba(255,255,255,.55));
+  -webkit-backdrop-filter:blur(14px) saturate(1.3); backdrop-filter:blur(14px) saturate(1.3);
+  border:1px solid rgba(255,255,255,.7); box-shadow:0 6px 22px rgba(8,59,107,.25);}
+.filtros select {background-color:rgba(255,255,255,.72); border-color:rgba(11,83,148,.22);}
+.filtros select:disabled {background-color:rgba(236,240,244,.55); color:#9aa7b4;}
+.btn-reset {background:rgba(255,255,255,.72); border-color:rgba(11,83,148,.22);}
+.filtros .input-daterange .form-control {background:rgba(255,255,255,.72); border-color:rgba(11,83,148,.22);}
+.f-lab {color:#4f6378;}
+
+/* PC: el menú lateral flota sobre el mapa, translúcido y redondeado */
+@media (min-width: 821px) {
+  .contenedor {position:relative;}
+  .panel-lateral {position:absolute; top:10px; left:10px; bottom:10px; width:250px; min-width:0;
+    z-index:1300; border-radius:18px; background:rgba(24,34,45,.78);
+    -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
+    border:1px solid rgba(255,255,255,.14); box-shadow:0 8px 26px rgba(0,0,0,.35);}
+  .panel-lateral .marca {padding:16px 14px 12px;}
+  .marca-tit {font-size:14px;}
+  .marca-sub {font-size:12px; margin-top:5px;}
+  .marca-det {font-size:10px;}
+  .panel-lateral .etiqueta-temas {padding:10px 16px; font-size:10px;}
+  .panel-lateral details {border-top:1px solid rgba(255,255,255,.1);}
+  .panel-lateral summary {padding:10px 16px; font-size:11.5px; letter-spacing:.7px;}
+  .panel-lateral summary:hover {background:rgba(255,255,255,.08);}
+  .panel-lateral details[open] > summary {background:rgba(42,127,212,.72);}
+  .panel-lateral .contenido {padding:10px 16px 14px;}
+  .panel-lateral label, .panel-lateral .radio label {font-size:12px;}
+  .panel-lateral .nota-info {font-size:11px;}
+  .panel-lateral .ley-tit {font-size:11.5px;}
+  .panel-lateral .ley-fila {font-size:11px;}
+  .panel-lateral .ley-sw {width:26px; height:12px;}
+  .filtros {left:270px; max-width:calc(100% - 270px - 175px);}
+  .leaflet-top.leaflet-left, .leaflet-bottom.leaflet-left {margin-left:262px;}
+  .panel-result {left:270px;}
+}
+@media (min-width: 821px) and (max-width: 1100px) {
+  .panel-lateral {width:210px;}
+  .filtros {left:230px; max-width:calc(100% - 230px - 160px);}
+  .leaflet-top.leaflet-left, .leaflet-bottom.leaflet-left {margin-left:222px;}
+  .panel-result {left:230px;}
+}
+
+@media (max-width: 820px) {
+  /* menú ☰: más pequeño y azul */
+  .btn-menu {width:30px; height:30px; padding:0 3px; gap:5px; margin-right:4px;}
+  .btn-menu span {height:2px; background:#0b5394;}
+  /* "Consultar valor" separado de Mapa | Satélite */
+  .ctrl-derecha {top:calc(var(--fh,100px) + 66px);}
+  /* leyenda translúcida (sigue blanca) */
+  .ley-movil {background:rgba(255,255,255,.6); -webkit-backdrop-filter:blur(12px);
+    backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.7);}
+}
 )---"
 
 JS_CODIGO <- r"---(
@@ -3021,6 +3078,12 @@ JS_MOVIL <- r"---(
       if (!e.target.closest) { return; }
       if (!e.target.closest('.menu-sel') && !e.target.closest('.filtros select')) { cerrarSel(); }
     });
+
+    // ---- La leyenda se minimiza al tocar cualquier parte fuera de ella (mapa incluido) ----
+    document.addEventListener('click', function (e) {
+      var l = document.querySelector('.ley-movil');
+      if (l && l.open && e.target && e.target.closest && !e.target.closest('.ley-movil')) { l.open = false; }
+    }, true);
 
     // ---- Calendario: en celular no se abre el teclado al tocar las fechas ----
     function fechasSinTeclado() {
