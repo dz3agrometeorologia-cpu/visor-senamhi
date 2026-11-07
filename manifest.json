@@ -9,15 +9,6 @@
     "content_category": null,
     "has_parameters": false
   },
-  "python": {
-    "version": "3.13.16",
-    "requires": null,
-    "package_manager": {
-      "name": "pip",
-      "version": "26.2.2",
-      "package_file": "requirements.txt"
-    }
-  },
   "packages": {
     "DBI": {
       "Source": "CRAN",
@@ -2273,10 +2264,7 @@
   },
   "files": {
     "app.R": {
-      "checksum": "920fade3312f80a6288abe60b450fe0e"
-    },
-    "requirements.txt": {
-      "checksum": "b969c5168c87aa5fc08f4242b65ed692"
+      "checksum": "893b44bf50ca11618e9dec2dd7134b4a"
     },
     "www/logos.png": {
       "checksum": "222d405c8d069c86d02468ae9baf061c"
