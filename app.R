@@ -1118,6 +1118,56 @@ html, body {margin:0; padding:0; height:100%; overflow:hidden;
   .ley-movil {background:rgba(255,255,255,.6); -webkit-backdrop-filter:blur(12px);
     backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.7);}
 }
+
+/* =====================================================================
+   AJUSTES V4: menú lateral compacto y más oscuro (PC), pastilla azul oscura (PC),
+   menú "Consultar valor" y ventanas de parámetros translúcidos
+   ===================================================================== */
+@media (min-width: 821px) {
+  .panel-lateral {background:rgba(12,20,29,.84);}
+  .panel-lateral .marca {padding:10px 12px 8px;}
+  .marca-tit {font-size:13px;}
+  .marca-sub {font-size:11px; margin-top:3px;}
+  .marca-det {font-size:9.5px; margin-top:2px;}
+  .panel-lateral .etiqueta-temas {padding:5px 14px; font-size:9px;}
+  .panel-lateral summary {padding:7px 14px; font-size:11px;}
+  .panel-lateral .contenido {padding:6px 14px 9px;}
+  .panel-lateral .form-group, .panel-lateral .shiny-input-container {margin-bottom:3px;}
+  .panel-lateral .control-label {margin-bottom:2px; font-size:11px;}
+  .panel-lateral .radio {margin:2px 0;}
+  .panel-lateral .radio label {font-size:11.5px;}
+  .panel-lateral .nota-info {margin-top:3px; font-size:10.5px;}
+  .panel-lateral .ley-tit {margin:0 0 5px; font-size:11px;}
+  .panel-lateral .ley-barra {height:9px;}
+  .panel-lateral .ley-marcas {margin:1px 0 6px; font-size:9px;}
+  .panel-lateral .ley-fila {margin:2px 0; font-size:10.5px;}
+  .panel-lateral .ley-sw {height:10px;}
+  .panel-lateral .irs-grid {display:none;}
+  .panel-lateral .irs {height:38px;}
+
+  /* pastilla de filtros: azul oscuro sutil y translúcido */
+  .filtros {background:linear-gradient(135deg, rgba(9,38,72,.66), rgba(18,68,118,.50));
+    border:1px solid rgba(255,255,255,.22); box-shadow:0 6px 22px rgba(4,20,40,.38);}
+  .filtros .f-lab {color:#d6e6f5;}
+  .filtros select {background-color:rgba(255,255,255,.9); border-color:rgba(255,255,255,.35);}
+  .filtros select:disabled {background-color:rgba(255,255,255,.45); color:#6b7a88;}
+  .btn-reset {background:rgba(255,255,255,.9); border-color:rgba(255,255,255,.35);}
+  .filtros .input-daterange .form-control {background:rgba(255,255,255,.9); border-color:rgba(255,255,255,.35);}
+  .filtros .input-daterange .input-group-addon,
+  .filtros .input-daterange .input-group-text {color:#fff;}
+  .f-sep {background:rgba(255,255,255,.28);}
+}
+
+/* menú de Consultar valor: igual a la leyenda del celular (blanco translúcido) */
+.menu-consulta {background:rgba(255,255,255,.6); -webkit-backdrop-filter:blur(12px);
+  backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,.7);}
+
+/* ventanas de parámetros: mismo color, ahora translúcidas */
+:root {--fondo-clima: radial-gradient(120% 90% at 15% 0%, rgba(255,255,255,.18) 0%, rgba(255,255,255,0) 55%),
+  linear-gradient(160deg, rgba(76,164,58,.74) 0%, rgba(57,161,76,.72) 32%, rgba(36,160,138,.72) 64%, rgba(13,116,176,.74) 100%);}
+.ventana-valores, .ventana-coord, .panel-result, .dibujo-ayuda {
+  -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
+  border:1px solid rgba(255,255,255,.35);}
 )---"
 
 JS_CODIGO <- r"---(
