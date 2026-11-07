@@ -881,6 +881,186 @@ html, body {margin:0; padding:0; height:100%; overflow:hidden;
   .ley-movil .ley-marcas {color:#556;}
   .ley-movil .ley-fila {font-size:11px; margin:3px 0;}
 }
+
+/* =====================================================================
+   AJUSTES V2 (celular y calendario). Van al final para tener prioridad.
+   ===================================================================== */
+
+/* ---- Sin texto de créditos abajo (Leaflet · Google · Sentinel · Landsat) ---- */
+.leaflet-control-attribution {display:none !important;}
+
+/* ---- Etiquetas del mapa en azul oscuro ---- */
+.leaflet-tooltip.etq-unidad {color:#083b6b;}
+
+/* ---- Calendario del periodo: más vistoso (todas las pantallas) ---- */
+.datepicker.datepicker-dropdown {padding:0 !important; border:0 !important; border-radius:18px !important;
+  overflow:hidden; background:#fff; box-shadow:0 10px 28px rgba(8,59,107,.35) !important;
+  font-family:inherit; margin-top:6px;}
+.datepicker-dropdown:before, .datepicker-dropdown:after {display:none !important;}
+.datepicker > div {background:var(--fondo-clima) top / 100% 44px no-repeat, #fff;}
+.datepicker table {width:100%; margin:0; border-collapse:separate; border-spacing:0; padding:0 8px 8px;
+  box-sizing:border-box;}
+.datepicker table thead tr:first-child th {height:44px; background:transparent !important; color:#fff;
+  font-size:13px; font-weight:700; border-radius:0 !important; text-shadow:none; cursor:pointer;}
+.datepicker table thead tr:first-child th:hover {background:rgba(255,255,255,.18) !important;}
+.datepicker table thead tr:first-child th.datepicker-switch {letter-spacing:.3px;}
+.datepicker table thead tr:last-child th.dow, .datepicker th.dow {color:var(--az); font-size:10px;
+  font-weight:800; text-transform:uppercase; padding:8px 0 4px; letter-spacing:.4px;}
+.datepicker table tr td {text-align:center; font-size:12.5px; color:#1f2a35;}
+.datepicker table tr td.day {width:14.28%; height:32px; line-height:32px; padding:0; border-radius:50% !important;
+  transition:background .12s, color .12s;}
+.datepicker table tr td.day:hover, .datepicker table tr td.focused {background:#e3f0fb !important;
+  color:var(--az-osc);}
+.datepicker table tr td.old, .datepicker table tr td.new {color:#b3c0cd;}
+.datepicker table tr td.today, .datepicker table tr td.today:hover {background:transparent !important;
+  box-shadow:inset 0 0 0 2px var(--cel); color:var(--az) !important; font-weight:700;}
+.datepicker table tr td.range, .datepicker table tr td.range:hover {background:#e6f1fb !important;
+  color:var(--az-osc); border-radius:0 !important;}
+.datepicker table tr td.active, .datepicker table tr td.active:hover,
+.datepicker table tr td.active.day, .datepicker table tr td.selected,
+.datepicker table tr td span.active, .datepicker table tr td span.active:hover {
+  background:var(--am) !important; background-image:none !important; color:var(--az-osc) !important;
+  font-weight:800; text-shadow:none; box-shadow:0 2px 6px rgba(253,197,15,.55) !important;
+  border-radius:50% !important;}
+.datepicker table tr td.disabled, .datepicker table tr td.disabled:hover {background:transparent !important;
+  color:#cdd6df !important; box-shadow:none !important;}
+.datepicker table tr td span.month, .datepicker table tr td span.year {height:36px; line-height:36px;
+  margin:3px 0; border-radius:12px !important; font-size:12.5px;}
+.datepicker table tr td span.month:hover, .datepicker table tr td span.year:hover {background:#e3f0fb !important;}
+.datepicker table tr td span.focused {background:#e3f0fb !important;}
+
+/* ---- Menú de listas en celular (en lugar del selector nativo) ---- */
+.menu-sel {position:fixed; z-index:3000; display:none; background:rgba(44,52,60,.9);
+  -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px); border-radius:14px; padding:4px 0;
+  box-shadow:0 8px 24px rgba(0,0,0,.4); overflow-y:auto; -webkit-overflow-scrolling:touch;
+  border:1px solid rgba(255,255,255,.12);}
+.menu-sel div {position:relative; padding:8px 14px 8px 30px; font-size:12px; color:#fff;
+  white-space:nowrap; cursor:pointer;}
+.menu-sel div.sel:before {content:'\2713'; position:absolute; left:11px; top:8px; font-size:12px;}
+.menu-sel div:active {background:rgba(255,255,255,.16);}
+
+/* ---- CELULAR: iconos y letras más pequeños, ventanas del tamaño de la leyenda ---- */
+@media (max-width: 820px) {
+  .cabecera {height:48px; padding:0 10px;}
+  .cabecera img {height:30px !important; max-width:calc(100% - 52px);}
+  /* botón del menú: tres líneas finas, sin fondo azul */
+  .btn-menu {background:transparent !important; width:38px; height:38px; padding:0 5px; gap:6px;
+    border-radius:8px;}
+  .btn-menu span {height:2px; border-radius:2px; background:#2b2f33;}
+
+  /* filtros */
+  .filtros {top:6px; left:6px; right:6px; gap:5px; padding:6px 8px 8px; border-radius:14px;}
+  .filtros select, .filtros #sel_dep, .filtros #sel_prov, .filtros #sel_dist {
+    height:30px; font-size:11px; padding:3px 20px 3px 7px; border-radius:7px; background-size:10px 10px;}
+  .btn-reset {height:30px; font-size:10px; border-radius:7px;}
+  .filtros .input-daterange .form-control {height:30px; font-size:11px; border-radius:7px !important;}
+  .f-lab {font-size:8px; margin-bottom:2px;}
+
+  /* controles del mapa */
+  .selector-base button {height:30px; font-size:11px; padding:0 11px;}
+  .btn-consulta {height:32px; font-size:12px; padding:0 12px; gap:5px;}
+  .btn-consulta svg {width:14px; height:14px;}
+  .btn-icono {width:32px; height:32px;}
+  .btn-icono svg {width:16px; height:16px;}
+  .ctrl-derecha {top:calc(var(--fh,100px) + 52px); gap:6px;}
+  .menu-consulta {min-width:180px;}
+  .menu-consulta .mi {font-size:11.5px; padding:7px 9px;}
+  .aviso-mapa {font-size:11px; padding:6px 10px;}
+  .spinner-mapa {font-size:11px; padding:4px 10px;}
+  .leaflet-tooltip.etq-unidad {font-size:9px;}
+  .escala-ctrl {width:140px; font-size:9.5px; padding:4px 9px 5px; margin:0 0 8px 8px;}
+
+  /* leyenda */
+  .ley-movil {max-width:170px; bottom:44px; border-radius:10px;}
+  .ley-movil summary {padding:5px 10px; font-size:10.5px;}
+  .ley-movil .contenido-ley {padding:0 10px 8px;}
+  .ley-movil .ley-tit {font-size:10px; margin-bottom:5px;}
+  .ley-movil .ley-barra {height:9px;}
+  .ley-movil .ley-marcas {font-size:9px; margin-bottom:6px;}
+  .ley-movil .ley-fila {font-size:9.5px; margin:2px 0; gap:6px;}
+  .ley-movil .ley-sw {width:22px; height:10px;}
+
+  /* menú lateral: más fino, un poco separado del borde y translúcido */
+  .panel-lateral {top:54px; left:8px; bottom:8px; width:66%; max-width:236px; border-radius:16px;
+    background:rgba(24,34,45,.78); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
+    border:1px solid rgba(255,255,255,.14); transform:translateX(-120%);
+    box-shadow:0 8px 24px rgba(0,0,0,.35);}
+  body.menu-abierto .panel-lateral {transform:none;}
+  body.menu-abierto .velo {top:48px; background:rgba(0,0,0,.28);}
+  .panel-lateral .marca {padding:12px 12px 10px;}
+  .marca-tit {font-size:12.5px; letter-spacing:1px;}
+  .marca-sub {font-size:10.5px; margin-top:4px;}
+  .marca-det {font-size:9px;}
+  .panel-lateral .etiqueta-temas {padding:8px 14px; font-size:9px;}
+  .panel-lateral details {border-top:1px solid rgba(255,255,255,.1);}
+  .panel-lateral summary {padding:8px 14px; font-size:10.5px; font-weight:600; letter-spacing:.6px;}
+  .panel-lateral details[open] > summary {background:rgba(42,127,212,.7);}
+  .panel-lateral .contenido {padding:8px 14px 12px;}
+  .panel-lateral label, .panel-lateral .control-label {font-size:10.5px;}
+  .panel-lateral .radio label {font-size:10.5px;}
+  .panel-lateral .nota-info {font-size:9.5px;}
+  .panel-lateral .ley-tit {font-size:10px;}
+  .panel-lateral .ley-fila {font-size:10px; margin:3px 0;}
+  .panel-lateral .ley-sw {width:24px; height:11px;}
+  .panel-lateral .ley-barra {height:9px;}
+  .panel-lateral .ley-marcas {font-size:9px;}
+
+  /* ventanas de "Consultar valor": del tamaño de la leyenda */
+  .ventana-valores {width:min(180px, calc(100% - 16px)); padding:8px; border-radius:12px;}
+  .vv-x {width:20px; height:20px; font-size:15px; line-height:18px; top:-7px; right:-7px;}
+  .asa {width:34px; height:4px;}
+  .vc {gap:5px;}
+  .vc-caja {border-radius:9px;}
+  .vc-head {padding:5px 7px; font-size:9px; gap:4px;}
+  .vc-head svg {width:12px; height:12px;}
+  .vc-head b {margin-right:2px;}
+  .vc-sep {height:12px;}
+  .vc-card {padding:6px; border-radius:9px;}
+  .vc-top {gap:6px;}
+  .vc-ico {width:24px; height:24px;}
+  .vc-ico svg {width:14px; height:14px;}
+  .vc-tit b {font-size:12px;}
+  .vc-tit span {font-size:8.5px;}
+  .vc-val {font-size:10px; padding:1px 6px; border-radius:8px;}
+  .vc-pill {font-size:9.5px; padding:4px 7px; margin-top:5px; gap:5px; border-radius:8px;}
+  .vc-pill svg {width:11px; height:11px;}
+  .vc-aviso {font-size:10px; padding:7px 9px; border-radius:9px;}
+
+  .ventana-coord {width:min(195px, calc(100% - 16px)); padding:8px; border-radius:12px;}
+  .ventana-coord .pc-form {padding:7px; border-radius:9px;}
+  .pr-cab {font-size:11.5px; margin-bottom:6px;}
+  .pc-tabs button {font-size:10px; padding:4px 0;}
+  .pc-campo label {font-size:8px;}
+  .pc-campo input, .pc-campo select {height:26px; font-size:11px;}
+  .pc-ayuda {font-size:8.5px; margin-bottom:6px;}
+  .pc-ir {height:27px; font-size:11px; border-radius:7px;}
+  .pc-msg {font-size:9.5px;}
+
+  .panel-result {left:8px; right:auto; top:auto; bottom:8px; width:min(235px, calc(100% - 16px));
+    max-height:50%; padding:8px; border-radius:12px;}
+  .rs-total {padding:6px 9px; border-radius:9px;}
+  .rs-tl {font-size:10.5px;}
+  .rs-n {font-size:17px;}
+  .rs-s {font-size:9px;}
+  .rs-tit {font-size:12px; margin-bottom:5px;}
+  .rs-tit span {font-size:9px;}
+  .rs-fila {grid-template-columns:9px 1fr 54px 30px; column-gap:4px; font-size:10px; margin-bottom:5px;}
+  .rs-cab {font-size:9.5px; padding-bottom:4px; margin-bottom:4px;}
+  .rs-m2 {font-size:8.5px;}
+  .rs-sw {width:9px; height:9px;}
+  .rs-sec-tit {font-size:11px;}
+  .rs-parcela {border-radius:9px;}
+  .rs-parcela > summary {padding:6px 9px; font-size:10.5px;}
+  .rs-pa small {font-size:8.5px;}
+  .dibujo-ayuda {bottom:46px; padding:5px 6px; border-radius:10px;}
+  .dib-b {height:26px; padding:0 9px; font-size:11px; border-radius:7px;}
+  .dib-msg {font-size:10px;}
+
+  /* calendario más compacto */
+  .datepicker table tr td {font-size:11.5px;}
+  .datepicker table tr td.day {height:30px; line-height:30px;}
+  .datepicker table thead tr:first-child th {height:40px; font-size:12px;}
+}
 )---"
 
 JS_CODIGO <- r"---(
@@ -909,14 +1089,15 @@ JS_CODIGO <- r"---(
     }
     if (n < 100) { setTimeout(function () { engancharLeaflet(n + 1); }, 100); }
   }
-  var ATRIB = 'Sentinel-2 (Copernicus) · Landsat 9 (USGS/NASA) · Google Earth Engine';
+  var ATRIB = '';
 
+  // Líneas en azul (antes negras)
   var ESTILO = {
-    base:  { color: '#222222', weight: 1.4, opacity: 1, fillColor: '#ffffff', fillOpacity: 0.03 },
+    base:  { color: '#2a7fd4', weight: 1.4, opacity: 1, fillColor: '#ffffff', fillOpacity: 0.03 },
     hover: { color: '#0b5394', weight: 3, opacity: 1, fillColor: '#0b5394', fillOpacity: 0.22 },
     sel:   { color: '#0b5394', weight: 3.5, opacity: 1, fillColor: '#0b5394', fillOpacity: 0.12 },
-    ctx:   { color: '#444444', weight: 1, opacity: 0.85, fill: false },
-    peru:  { color: '#666666', weight: 0.8, opacity: 0.7, fill: false },
+    ctx:   { color: '#2a7fd4', weight: 1, opacity: 0.85, fill: false },
+    peru:  { color: '#6fa8dc', weight: 0.8, opacity: 0.8, fill: false },
     casing: { color: '#ffffff', weight: 7, opacity: 0.9, fill: false },
     borde: { color: '#0b5394', weight: 3.5, opacity: 1, fill: false }
   };
@@ -1498,7 +1679,7 @@ JS_CODIGO <- r"---(
     if (!mapa) { return; }
     function gtile(lyrs) {
       return L.tileLayer('https://mt{s}.google.com/vt/lyrs=' + lyrs + '&hl=es&x={x}&y={y}&z={z}',
-        { subdomains: '0123', maxZoom: 22, maxNativeZoom: 20, zIndex: 1, attribution: '© Google' });
+        { subdomains: '0123', maxZoom: 22, maxNativeZoom: 20, zIndex: 1, attribution: '' });
     }
     selectorBase([
       { id: 'mapa', nombre: 'Mapa', capa: gtile('m') },
@@ -2755,10 +2936,13 @@ JS_CODIGO <- r"---(
 )---"
 
 # -----------------------------------------------------------------------------
-# Móvil: botón ☰ que abre/cierra el menú lateral y mide la altura de los filtros
+# Móvil: botón ☰ que abre/cierra el menú lateral, mide la altura de los filtros,
+# lista desplegable propia (oscura y translúcida) y calendario sin teclado
 # -----------------------------------------------------------------------------
 JS_MOVIL <- r"---(
 (function () {
+  function esMovil() { return window.matchMedia('(max-width: 820px)').matches; }
+
   function init() {
     var cab = document.querySelector('.cabecera'), panel = document.querySelector('.panel-lateral');
     if (!cab || !panel) { setTimeout(init, 200); return; }
@@ -2783,6 +2967,71 @@ JS_MOVIL <- r"---(
     medir(); setTimeout(medir, 800);
     window.addEventListener('resize', medir);
     if (window.ResizeObserver && f) { new ResizeObserver(medir).observe(f); }
+
+    // ---- Lista desplegable propia en celular (fondo oscuro translúcido, letra pequeña) ----
+    var menuSel = document.createElement('div');
+    menuSel.className = 'menu-sel';
+    document.body.appendChild(menuSel);
+    var abiertoPara = null, tAbierto = 0;
+
+    function cerrarSel() { menuSel.style.display = 'none'; abiertoPara = null; }
+
+    function abrirSel(sel) {
+      if (sel.disabled) { return; }
+      var r = sel.getBoundingClientRect();
+      menuSel.innerHTML = '';
+      [].forEach.call(sel.options, function (o) {
+        var d = document.createElement('div');
+        d.textContent = o.text;
+        if (o.value === sel.value) { d.className = 'sel'; }
+        d.addEventListener('click', function (e) {
+          e.stopPropagation();
+          sel.value = o.value;
+          if (window.jQuery) { window.jQuery(sel).trigger('change'); }
+          else { sel.dispatchEvent(new Event('change', { bubbles: true })); }
+          cerrarSel();
+        });
+        menuSel.appendChild(d);
+      });
+      menuSel.style.minWidth = Math.max(r.width, 150) + 'px';
+      menuSel.style.display = 'block';
+      var left = Math.min(r.left, window.innerWidth - menuSel.offsetWidth - 8);
+      menuSel.style.left = Math.max(8, left) + 'px';
+      menuSel.style.top = (r.bottom + 4) + 'px';
+      menuSel.style.maxHeight = Math.max(120, Math.min(window.innerHeight * 0.46,
+        window.innerHeight - r.bottom - 16)) + 'px';
+      abiertoPara = sel;
+      tAbierto = Date.now();
+    }
+
+    function interceptar(e) {
+      if (!esMovil() || !e.target || !e.target.closest) { return; }
+      var sel = e.target.closest('.filtros select');
+      if (!sel) { return; }
+      e.preventDefault();
+      if (abiertoPara === sel) {
+        if (Date.now() - tAbierto > 500) { cerrarSel(); }
+        return;
+      }
+      abrirSel(sel);
+    }
+    document.addEventListener('touchstart', interceptar, { passive: false });
+    document.addEventListener('mousedown', interceptar);
+    document.addEventListener('click', function (e) {
+      if (!e.target.closest) { return; }
+      if (!e.target.closest('.menu-sel') && !e.target.closest('.filtros select')) { cerrarSel(); }
+    });
+
+    // ---- Calendario: en celular no se abre el teclado al tocar las fechas ----
+    function fechasSinTeclado() {
+      if (!esMovil()) { return; }
+      [].forEach.call(document.querySelectorAll('.filtros .input-daterange input'), function (i) {
+        i.readOnly = true;
+        i.setAttribute('inputmode', 'none');
+      });
+    }
+    fechasSinTeclado(); setTimeout(fechasSinTeclado, 600); setTimeout(fechasSinTeclado, 1800);
+    window.addEventListener('resize', fechasSinTeclado);
   }
   if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); }
   else { init(); }
@@ -3101,7 +3350,8 @@ server <- function(input, output, session) {
   
   # ---- Mapa base: solo Google (se agrega desde JavaScript) -------------------
   output$mapa <- renderLeaflet({
-    leaflet(options = leafletOptions(zoomSnap = 0.25, zoomDelta = 0.5, maxZoom = 20)) |>
+    leaflet(options = leafletOptions(zoomSnap = 0.25, zoomDelta = 0.5, maxZoom = 20,
+                                     attributionControl = FALSE)) |>
       setView(lng = -75, lat = -9, zoom = 5) |>
       htmlwidgets::onRender("function(el, x) { window.mapaLeaflet = this; }")
   })
