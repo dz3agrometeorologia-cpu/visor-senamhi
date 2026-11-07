@@ -817,6 +817,70 @@ html, body {margin:0; padding:0; height:100%; overflow:hidden;
   .ctrl-derecha {top:132px;}
   .cabecera h3 {font-size:15px;}
 }
+
+/* ================= MÓVIL (celular) ================= */
+.app-raiz {height:100dvh;}
+.btn-menu, .ley-movil, .velo {display:none;}
+@media (max-width: 820px) {
+  .cabecera {height:56px; padding:0 12px; justify-content:space-between; gap:10px; position:relative; z-index:2100;}
+  .cabecera img {height:36px !important; max-width:calc(100% - 60px); object-fit:contain;}
+  .btn-menu {display:flex; flex-direction:column; justify-content:center; gap:5px; width:42px; height:42px;
+    padding:0 9px; border:0; border-radius:10px; background:#0b5394; flex:0 0 auto;}
+  .btn-menu span {display:block; height:3px; border-radius:2px; background:#fff;}
+
+  /* panel lateral = menú que se desliza sobre el mapa */
+  .panel-lateral {position:fixed; top:56px; left:0; bottom:0; width:84%; max-width:330px; max-height:none;
+    z-index:2050; transform:translateX(-102%); transition:transform .22s ease; box-shadow:4px 0 16px rgba(0,0,0,.35);}
+  body.menu-abierto .panel-lateral {transform:none;}
+  body.menu-abierto .velo {display:block; position:fixed; top:56px; left:0; right:0; bottom:0;
+    z-index:2040; background:rgba(0,0,0,.45);}
+  .panel-lateral summary {padding:16px 18px; font-size:14px;}
+
+  /* filtros en dos filas: Dep | Prov | Dist  y  Restablecer | Periodo */
+  .filtros {display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; left:8px; right:8px; top:8px;
+    width:auto; max-width:none; padding:8px 10px 10px; border-radius:16px; overflow:visible;}
+  .filtros .f-grupo {min-width:0;}
+  .filtros .shiny-input-container {width:100% !important;}
+  .filtros select, .filtros #sel_dep, .filtros #sel_prov, .filtros #sel_dist {
+    width:100%; height:36px; font-size:12px; padding:4px 22px 4px 8px; text-overflow:ellipsis;}
+  .f-lab {font-size:9px;}
+  .f-sep {display:none;}
+  .btn-reset {grid-column:1; align-self:end; height:36px; font-size:11px; padding:0 4px;
+    white-space:normal; line-height:1.1;}
+  .filtros .f-grupo:last-child {grid-column:2 / 4;}
+  .filtros .input-daterange {width:100% !important;}
+  .filtros .input-daterange .form-control {flex:1 1 0; width:auto !important; min-width:0;
+    height:36px; font-size:12px; padding:4px 2px;}
+
+  /* controles del mapa: se acomodan bajo los filtros (altura medida por JS) */
+  .leaflet-top.leaflet-left {margin-top:0;}
+  .leaflet-control-zoom {display:none;}
+  .leaflet-top.leaflet-right {margin-top:calc(var(--fh,118px) + 10px);}
+  .ctrl-derecha {top:calc(var(--fh,118px) + 62px); right:10px;}
+  .selector-base button {height:36px; font-size:13px;}
+  .btn-consulta {height:40px; font-size:14px;}
+  .btn-icono {width:40px; height:40px;}
+  .spinner-mapa {top:calc(var(--fh,118px) + 18px);}
+  .aviso-mapa {top:calc(var(--fh,118px) + 20px);}
+
+  /* ventanas: resultados como hoja inferior */
+  .panel-result {left:8px; right:8px; top:auto; bottom:8px; width:auto; max-height:52%;}
+  .ventana-valores {width:min(285px, calc(100% - 16px));}
+  .ventana-coord {width:min(270px, calc(100% - 16px));}
+  .dibujo-ayuda {bottom:52px;}
+
+  /* leyenda plegable sobre el mapa */
+  .ley-movil {display:block; position:absolute; left:8px; bottom:46px; z-index:1100; max-width:200px;
+    background:rgba(255,255,255,.93); border-radius:12px; box-shadow:0 1px 6px rgba(0,0,0,.35);
+    font-size:11px; color:#1f2a35;}
+  .ley-movil summary {padding:7px 12px; font-weight:700; color:#0b5394; cursor:pointer;
+    list-style:none; font-size:12px;}
+  .ley-movil summary::-webkit-details-marker {display:none;}
+  .ley-movil .contenido-ley {padding:0 12px 10px;}
+  .ley-movil .ley-tit {color:#083b6b; font-size:11px;}
+  .ley-movil .ley-marcas {color:#556;}
+  .ley-movil .ley-fila {font-size:11px; margin:3px 0;}
+}
 )---"
 
 JS_CODIGO <- r"---(
@@ -2691,6 +2755,41 @@ JS_CODIGO <- r"---(
 )---"
 
 # -----------------------------------------------------------------------------
+# Móvil: botón ☰ que abre/cierra el menú lateral y mide la altura de los filtros
+# -----------------------------------------------------------------------------
+JS_MOVIL <- r"---(
+(function () {
+  function init() {
+    var cab = document.querySelector('.cabecera'), panel = document.querySelector('.panel-lateral');
+    if (!cab || !panel) { setTimeout(init, 200); return; }
+    var b = document.createElement('button');
+    b.type = 'button'; b.id = 'btn-menu'; b.className = 'btn-menu';
+    b.setAttribute('aria-label', 'Menú');
+    b.innerHTML = '<span></span><span></span><span></span>';
+    cab.appendChild(b);
+    var v = document.createElement('div'); v.className = 'velo'; document.body.appendChild(v);
+    function abrir(a) { document.body.classList.toggle('menu-abierto', a); }
+    b.addEventListener('click', function () {
+      abrir(!document.body.classList.contains('menu-abierto'));
+    });
+    v.addEventListener('click', function () { abrir(false); });
+    panel.addEventListener('change', function (e) {
+      if (e.target && e.target.name === 'capa') { setTimeout(function () { abrir(false); }, 250); }
+    });
+    var f = document.querySelector('.filtros');
+    function medir() {
+      if (f) { document.documentElement.style.setProperty('--fh', f.offsetHeight + 'px'); }
+    }
+    medir(); setTimeout(medir, 800);
+    window.addEventListener('resize', medir);
+    if (window.ResizeObserver && f) { new ResizeObserver(medir).observe(f); }
+  }
+  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); }
+  else { init(); }
+})();
+)---"
+
+# -----------------------------------------------------------------------------
 # Interfaz
 # -----------------------------------------------------------------------------
 ICONO_PANTALLA <- '<svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M3 3h6v2H5v4H3V3zm12 0h6v6h-2V5h-4V3zM3 15h2v4h4v2H3v-6zm16 0h2v6h-6v-2h4v-4z"/></svg>'
@@ -2724,7 +2823,8 @@ ui <- function(request) {
       tags$script(HTML(paste0("window.CLASES = ",
                               jsonlite::toJSON(lapply(VIS, function(v) v$clases), auto_unbox = TRUE),
                               ";"))),
-      tags$script(HTML(JS_CODIGO))
+      tags$script(HTML(JS_CODIGO)),
+      tags$script(HTML(JS_MOVIL))
     ),
     div(class = "app-raiz",
         
@@ -2786,6 +2886,12 @@ ui <- function(request) {
                     ),
                     
                     div(class = "spinner-mapa", "Calculando…"),
+                    
+                    # ---- Leyenda plegable (solo se ve en celular) ----
+                    tags$details(class = "ley-movil",
+                                 tags$summary("🎨 Leyenda"),
+                                 div(class = "contenido-ley", uiOutput("leyenda_movil"))),
+                    
                     div(class = "minimapa-wrap",
                         div(id = "minimapa"),
                         div(class = "norte", HTML(ICONO_NORTE))),
@@ -3089,8 +3195,8 @@ server <- function(input, output, session) {
     session$sendCustomMessage("poligono_resultado", list(id = p$id, datos = datos))
   })
   
-  # ---- Panel lateral: leyenda e información del periodo -----------------------
-  output$leyenda <- renderUI({
+  # ---- Panel lateral: leyenda (en el menú y en la leyenda plegable del celular) ----
+  ley_ui <- reactive({
     v <- VIS[[input$capa %||% "NDVI"]]
     degradado <- paste0("linear-gradient(to right, ",
                         paste(v$palette, collapse = ","), ")")
@@ -3105,6 +3211,8 @@ server <- function(input, output, session) {
       })
     )
   })
+  output$leyenda       <- renderUI(ley_ui())
+  output$leyenda_movil <- renderUI(ley_ui())
   
   output$info_periodo <- renderUI({
     f <- fechas_deb()
