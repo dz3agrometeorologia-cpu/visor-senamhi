@@ -3498,11 +3498,11 @@ SPLASH_CSS <- r"---(
 }
 /* Solo celular: el contenido sube un poco y el resplandor lo acompaña */
 @media (max-width: 820px) {
-  #splash {box-sizing:border-box; padding-bottom:18vh;}
-  .sp-glow {background:radial-gradient(circle at 50% 35%, rgba(253,197,15,.16), transparent 52%);}
+  #splash {box-sizing:border-box; padding-bottom:calc(18vh - 76px);}
+  .sp-glow {background:radial-gradient(circle at 50% 39%, rgba(253,197,15,.16), transparent 52%);}
 }
 @media (max-width: 820px) and (prefers-color-scheme: light) {
-  .sp-glow {background:radial-gradient(circle at 50% 35%, rgba(11,83,148,.40), rgba(11,83,148,.16) 40%, transparent 68%);}
+  .sp-glow {background:radial-gradient(circle at 50% 39%, rgba(11,83,148,.40), rgba(11,83,148,.16) 40%, transparent 68%);}
 }
 @media (prefers-reduced-motion: reduce) {
   .sp-img, .sp-glow, .sp-pts i {animation:none;}
