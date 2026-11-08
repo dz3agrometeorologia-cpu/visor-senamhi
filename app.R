@@ -3473,7 +3473,7 @@ SPLASH_CSS <- r"---(
 .sp-barra {margin-top:22px; width:min(240px,62vw); height:4px; border-radius:4px; overflow:hidden;
   background:rgba(255,255,255,.14);}
 .sp-barra i {display:block; position:relative; height:100%; width:8%; border-radius:4px;
-  background:linear-gradient(90deg,#fdc50f,#ffe27a); transition:width .7s ease; overflow:hidden;}
+  background:linear-gradient(90deg,#6dd5c8,#b8d68a 50%,#ffc40d); transition:width .7s ease; overflow:hidden;}
 .sp-barra i:after {content:''; position:absolute; top:0; bottom:0; width:40%;
   background:linear-gradient(90deg,transparent,rgba(255,255,255,.65),transparent);
   animation:sp-brillo 1.4s ease-in-out infinite;}
@@ -3488,14 +3488,13 @@ SPLASH_CSS <- r"---(
 @keyframes sp-resp {50% {opacity:.45;}}
 @keyframes sp-brillo {from {left:-45%;} to {left:110%;}}
 @media (prefers-color-scheme: light) {
-  #splash {background:#eaf1f9; color:#061a33;}
+  #splash {background:#eaf1f9; color:#020d1a;}
   .sp-osc {display:none;}
   .sp-cla {display:block;}
   .sp-glow {background:radial-gradient(circle at 50% 42%, rgba(11,83,148,.40), rgba(11,83,148,.16) 40%, transparent 68%);}
-  .sp-sub {color:#061a33;}
+  .sp-sub {color:#020d1a;}
   .sp-barra {background:rgba(11,83,148,.22);}
-  .sp-barra i {background:linear-gradient(90deg,#083b6b,#0b5394 55%,#3b9be6);}
-  .sp-txt {color:#061a33;}
+  .sp-txt {color:#020d1a;}
 }
 @media (prefers-reduced-motion: reduce) {
   .sp-img, .sp-glow, .sp-pts i {animation:none;}
