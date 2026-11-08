@@ -1332,12 +1332,21 @@ JS_CODIGO <- r"---(
   }
   var ATRIB = '';
 
-  // Líneas en azul (antes negras)
+      // Líneas en azul (antes negras)
+  var CELESTE = '#2a6fd6';   // líneas internas (azul medio)
+  var CONTORNO = '#0a2f6b';  // contorno de la selección (azul marino)
+
   var ESTILO = {
     base:  { color: '#165a9f', weight: 1.3, opacity: 1, fillColor: '#ffffff', fillOpacity: 0.03 },
     hover: { color: '#0b5394', weight: 3, opacity: 1, fillColor: '#0b5394', fillOpacity: 0.22 },
     sel:   { color: '#0b5394', weight: 3.5, opacity: 1, fillColor: '#0b5394', fillOpacity: 0.12 },
     ctx:   { color: '#165a9f', weight: 1.2, opacity: 0.95, fill: false },
+    // Líneas internas finas (azul medio) y contorno de la selección más grueso (azul marino)
+    gBase:  { color: CELESTE, weight: 1.4, opacity: 1, fillColor: '#ffffff', fillOpacity: 0.03 },
+    gHover: { color: CELESTE, weight: 1.8, opacity: 1, fillColor: '#0b5394', fillOpacity: 0.22 },
+    gSel:   { color: CONTORNO, weight: 3, opacity: 1, fillColor: '#0b5394', fillOpacity: 0.12 },
+    gCtx:   { color: CELESTE, weight: 1.4, opacity: 1, fill: false },
+    gBorde: { color: CONTORNO, weight: 3, opacity: 1, fill: false },
     // límites departamentales de todo el Perú: delgados, azul algo más oscuro que el original, sin sombra
     peru:  { color: '#000000', weight: 0.4, opacity: 0.75, fill: false },
     // contorno del Perú: negro; la sombra se dibuja solo hacia afuera
@@ -1347,6 +1356,19 @@ JS_CODIGO <- r"---(
     casing: { color: '#ffffff', weight: 7, opacity: 0.9, fill: false },
     borde: { color: '#0b5394', weight: 3.5, opacity: 1, fill: false }
   };
+
+  // Ya no se usa degradado: se deja la función vacía para no tocar el resto del código
+  function asegurarGradiente() { }
+
+
+
+
+
+
+
+
+
+
 
   // Sombra sutil solo por fuera del contorno del Perú. Se dibuja en un canvas
   // (funciona igual en PC, Android y iPhone/Safari; los filtros SVG no funcionan en Safari).
@@ -1502,8 +1524,7 @@ JS_CODIGO <- r"---(
 
   function contornoSel(geojson, filtro) {
     var g = L.layerGroup();
-    g.addLayer(contorno(geojson, filtro, ESTILO.casing));
-    g.addLayer(contorno(geojson, filtro, ESTILO.borde));
+    g.addLayer(contorno(geojson, filtro, ESTILO.gBorde));
     return g;
   }
 
@@ -1512,31 +1533,149 @@ JS_CODIGO <- r"---(
   function sinResalte() { return modoConsulta || dibujando || !!polyFinal; }
 
   function selecc(geojson, filtro) {
-    return sinResalte() ? contorno(geojson, filtro, ESTILO.ctx)
+    return sinResalte() ? contorno(geojson, filtro, ESTILO.gCtx)
                         : contornoSel(geojson, filtro);
   }
 
-  function interactiva(geojson, filtro, nivel, idSel) {
+  // Control del relleno al pasar el mouse / girar la rueda
+  var hoverActual = null, hoverCapa = null, suprimida = null;
+
+  var tRueda = 0, rellenoOculto = false, capaInter = null;
+
+  // Quita el relleno azul de todas las áreas (al girar la rueda o hacer zoom)
+  function quitarRelleno() {
+    rellenoOculto = true;
+    tRueda = Date.now();
+    if (hoverActual) { suprimida = hoverActual; }
+    hoverActual = null;
+    if (capaInter) {
+      capaInter.eachLayer(function (l) { capaInter.resetStyle(l); });
+    }
+  }
+
+
+
+
+// (MAYÚSCULAS, sin tildes).
+  var POS_ETQ = [
+    { clave: 'SUR DE CAJAMARCA', pos: [-7.073047, -78.641578] },
+    { clave: 'LIBERTAD',         pos: [-8.044397, -78.288823] }
+  ];
+
+  function normalizarNombre(s) {
+    return String(s || '').toUpperCase().trim()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }
+
+  function posicionFija(nombre) {
+    var n = normalizarNombre(nombre), i;
+    for (i = 0; i < POS_ETQ.length; i++) {
+      if (n.indexOf(POS_ETQ[i].clave) !== -1) {
+        return L.latLng(POS_ETQ[i].pos[0], POS_ETQ[i].pos[1]);
+      }
+    }
+    return null;
+  }
+
+  // Punto de la etiqueta: centro de la pieza más grande de cada unidad.
+  // Si ese centro cae fuera del polígono, se usa el centro de su tramo horizontal más ancho.
+  function puntoEtiqueta(f) {
+    var g = f.geometry;
+    if (!g) { return null; }
+    var polis = g.type === 'Polygon' ? [g.coordinates] : (g.coordinates || []);
+    var mejor = null, mejorA = -1;
+    polis.forEach(function (p) {
+      if (!p || !p[0] || p[0].length < 3) { return; }
+      var a = Math.abs(areaFirmada(p[0]));
+      if (a > mejorA) { mejorA = a; mejor = p[0]; }
+    });
+    if (!mejor) { return null; }
+    var n = mejor.length, A = 0, cx = 0, cy = 0, i, j, w;
+    for (i = 0, j = n - 1; i < n; j = i++) {
+      w = mejor[j][0] * mejor[i][1] - mejor[i][0] * mejor[j][1];
+      A += w;
+      cx += (mejor[j][0] + mejor[i][0]) * w;
+      cy += (mejor[j][1] + mejor[i][1]) * w;
+    }
+    if (A !== 0) {
+      cx = cx / (3 * A);
+      cy = cy / (3 * A);
+      if (puntoEnAnillo([cx, cy], mejor)) { return L.latLng(cy, cx); }
+    }
+    var minY = Infinity, maxY = -Infinity;
+    mejor.forEach(function (c) {
+      if (c[1] < minY) { minY = c[1]; }
+      if (c[1] > maxY) { maxY = c[1]; }
+    });
+    var y = (minY + maxY) / 2, xs = [];
+    for (i = 0, j = n - 1; i < n; j = i++) {
+      var a = mejor[j], b = mejor[i];
+      if ((a[1] > y) !== (b[1] > y)) {
+        xs.push(a[0] + (y - a[1]) * (b[0] - a[0]) / (b[1] - a[1]));
+      }
+    }
+    xs.sort(function (p, q) { return p - q; });
+    var x = (xs.length ? xs[0] + xs[xs.length - 1] : 0) / 2, ancho = -1, k;
+    for (k = 0; k + 1 < xs.length; k += 2) {
+      if (xs[k + 1] - xs[k] > ancho) { ancho = xs[k + 1] - xs[k]; x = (xs[k] + xs[k + 1]) / 2; }
+    }
+    return L.latLng(y, x);
+  }
+
+    function interactiva(geojson, filtro, nivel, idSel, conGrad) {
     var campoId = { dep: 'IDDPTO', prov: 'IDPROV', dist: 'IDDIST' }[nivel];
     var campoNom = { dep: 'DEPARTAMEN', prov: 'PROVINCIA', dist: 'DISTRITO' }[nivel];
+    var eBase = conGrad ? ESTILO.gBase : ESTILO.base;
+    var eHover = conGrad ? ESTILO.gHover : ESTILO.hover;
+    var eSel = conGrad ? ESTILO.gSel : ESTILO.sel;
     var capa = L.geoJSON(geojson, {
       filter: filtro || function () { return true; },
       style: function (f) {
-        var esSel = !sinResalte() && idSel &&
+        var esSel = !sinResalte() && !rellenoOculto && idSel &&
                     String(f.properties[campoId]) === String(idSel);
-        return esSel ? ESTILO.sel : ESTILO.base;
+        return esSel ? eSel : eBase;
       },
       onEachFeature: function (f, lyr) {
         var id = String(f.properties[campoId]);
-        lyr.bindTooltip(String(f.properties[campoNom]), {
+        var nombre = String(f.properties[campoNom]);
+
+        // La etiqueta se centra en su propio polígono
+        var pe = puntoEtiqueta(f);
+        if (pe) { lyr.getCenter = function () { return pe; }; }
+
+        lyr.bindTooltip(nombre, {
           permanent: true, direction: 'center', className: 'etq-unidad'
         });
-        // El resalte azul al pasar el mouse no se muestra mientras haya consulta,
-        // dibujo, cálculo o ventana de variables (terreno delimitado/importado)
+
+        // Posición fija: se fuerza directamente en el tooltip al añadir la capa al mapa
+        var fija = posicionFija(nombre);
+        if (fija) {
+          var colocar = function () {
+            var t = lyr.getTooltip();
+            if (t) { t.setLatLng(fija); }
+          };
+          lyr.on('add', colocar);
+          lyr.on('tooltipopen', colocar);
+        }
+
+        // Relleno al pasar el mouse. Tras girar la rueda o hacer zoom no se vuelve a pintar
+        // la misma área; solo se pinta al pasar a otra.
         lyr.on('mouseover', function () {
-          if (!sinResalte()) { lyr.setStyle(ESTILO.hover); }
+          if (sinResalte()) { return; }
+          if (rellenoOculto && (lyr === suprimida || Date.now() - tRueda < 700)) {
+            suprimida = lyr;
+            return;
+          }
+          suprimida = null;
+          hoverActual = lyr;
+          hoverCapa = capa;
+          lyr.setStyle(eHover);
         });
-        lyr.on('mouseout', function () { capa.resetStyle(lyr); });
+        lyr.on('mouseout', function () {
+          if (lyr === suprimida && Date.now() - tRueda >= 700) { suprimida = null; }
+          if (hoverActual === lyr) { hoverActual = null; }
+          capa.resetStyle(lyr);
+        });
         lyr.on('click', function () {
           if (modoConsulta || dibujando) { return; }
           Shiny.setInputValue('nav_click',
@@ -1544,11 +1683,17 @@ JS_CODIGO <- r"---(
         });
       }
     });
+    capaInter = capa;
     return capa;
   }
 
+
+
+
+
   function render() {
     if (!mapa || !DATA || !grupo) { return; }
+        hoverActual = null; hoverCapa = null; suprimida = null; rellenoOculto = false;
     grupo.clearLayers();
     if (DATA.per) {
       agregar(contorno(DATA.per, null, ESTILO.peru));
@@ -1560,19 +1705,20 @@ JS_CODIGO <- r"---(
     }
     var d = estado.dep, p = estado.prov, s = estado.dist;
     if (!d) {
-      agregar(interactiva(DATA.dep, null, 'dep', null));
+      agregar(interactiva(DATA.dep, null, 'dep', null, false));
     } else if (!p) {
       agregar(contorno(DATA.dep, distinto('IDDPTO', d), ESTILO.ctx));
       agregar(selecc(DATA.dep, igual('IDDPTO', d)));
-      agregar(interactiva(DATA.prov, igual('IDDPTO', d), 'prov', null));
+      agregar(interactiva(DATA.prov, igual('IDDPTO', d), 'prov', null, true));
     } else {
       agregar(contorno(DATA.prov, function (f) {
         return String(f.properties.IDDPTO) === String(d) &&
                String(f.properties.IDPROV) !== String(p);
       }, ESTILO.ctx));
       agregar(selecc(DATA.prov, igual('IDPROV', p)));
-      agregar(interactiva(DATA.dist, igual('IDPROV', p), 'dist', s));
+      agregar(interactiva(DATA.dist, igual('IDPROV', p), 'dist', s, true));
     }
+    asegurarGradiente();
     diagEstado.limites = 'sí (' + (!d ? 'departamentos' : (!p ? 'provincias' : 'distritos')) + ')';
     diag();
   }
@@ -3103,8 +3249,10 @@ JS_CODIGO <- r"---(
     ajustarVistaInicial(false);
     setTimeout(function () { if (!estado.dep) { ajustarVistaInicial(false); } }, 500);
     setTimeout(function () { ajustarMinZoom(); }, 1500);
-    mapa.on('click', alClicMapa);
-    mapa.on('click', alClicDibujo);
+        mapa.on('click', alClicMapa);
+    // Al girar la rueda sobre el área pintada, el relleno desaparece
+     mapa.getContainer().addEventListener('wheel', quitarRelleno, { passive: true });
+    mapa.on('zoomstart', quitarRelleno);
     mapa.on('mousemove', alMoverDibujo);
     mapa.on('dblclick', function () { if (dibujando) { window.terminarDibujo(); } });
     mapa.on('move zoomend', reubicarVentana);
