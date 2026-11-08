@@ -310,6 +310,31 @@ def _redondear(c, n=4):
     return round(c, n)
 
 
+def contorno_pais(ruta, error_m):
+    # Contorno exterior del país: une todos los departamentos en un solo polígono
+    fc = ee.FeatureCollection(ruta)
+    g = fc.geometry(500).dissolve(500)
+    try:
+        # Lago Titicaca: el polígono de departamentos deja fuera la parte del lago que
+        # corresponde al Perú y el contorno se desvía por la orilla. Se completa esa parte
+        # con el límite internacional oficial (LSIB) solo dentro de la zona del lago.
+        lsib = (ee.FeatureCollection('USDOS/LSIB_SIMPLE/2017')
+                .filter(ee.Filter.eq('country_na', 'Peru')).geometry(100))
+        caja = ee.Geometry.Rectangle([-70.6, -17.3, -68.5, -14.5])
+        lago = (lsib.intersection(caja, 100).difference(g, 100)
+                .buffer(-2500, 100).buffer(2500, 100))
+        g2 = (g.union(lago, 100).buffer(1500, 100).buffer(-1500, 100)
+              .simplify(error_m))
+        info = g2.getInfo()
+    except Exception:
+        info = g.simplify(error_m).getInfo()
+    if 'coordinates' in info:
+        info['coordinates'] = _redondear(info['coordinates'])
+    feat = {'type': 'Feature', 'properties': {}, 'geometry': info}
+    return json.dumps({'type': 'FeatureCollection', 'features': [feat]},
+                      separators=(',', ':'))
+
+
 def limites_geojson(ruta, campos, error_m):
     campos = list(campos)
     fc = ee.FeatureCollection(ruta)
@@ -396,6 +421,14 @@ cargar_limites <- function() {
                               "IDDPTO", "DEPARTAMEN"), 50),
     per  = leer("DEP_PERU", character(0), 1500)
   )
+  # Contorno nacional (si falla, el visor sigue funcionando sin él)
+  lim$pais <- tryCatch(
+    list(geojson = as.character(reticulate::py$contorno_pais(
+      paste0(RUTA_ASSETS, "DEP_PERU"), 800))),
+    error = function(e) {
+      message("No se pudo armar el contorno del Perú: ", conditionMessage(e))
+      list(geojson = NULL)
+    })
   CACHE$lim <- lim
   lim
 }
@@ -892,17 +925,17 @@ html, body {margin:0; padding:0; height:100%; overflow:hidden;
 /* ---- Etiquetas del mapa en azul oscuro ---- */
 .leaflet-tooltip.etq-unidad {color:#083b6b;}
 
-/* ---- Calendario del periodo: más vistoso (todas las pantallas) ---- */
+/* ---- Calendario del periodo: encabezado normal (sin sombreado de color) ---- */
 .datepicker.datepicker-dropdown {padding:0 !important; border:0 !important; border-radius:18px !important;
   overflow:hidden; background:#fff; box-shadow:0 10px 28px rgba(8,59,107,.35) !important;
   font-family:inherit; margin-top:6px;}
 .datepicker-dropdown:before, .datepicker-dropdown:after {display:none !important;}
-.datepicker > div {background:var(--fondo-clima) top / 100% 44px no-repeat, #fff;}
+.datepicker > div {background:#fff;}
 .datepicker table {width:100%; margin:0; border-collapse:separate; border-spacing:0; padding:0 8px 8px;
   box-sizing:border-box;}
-.datepicker table thead tr:first-child th {height:44px; background:transparent !important; color:#fff;
+.datepicker table thead tr:first-child th {height:44px; background:transparent !important; color:var(--az-osc);
   font-size:13px; font-weight:700; border-radius:0 !important; text-shadow:none; cursor:pointer;}
-.datepicker table thead tr:first-child th:hover {background:rgba(255,255,255,.18) !important;}
+.datepicker table thead tr:first-child th:hover {background:#e3f0fb !important;}
 .datepicker table thead tr:first-child th.datepicker-switch {letter-spacing:.3px;}
 .datepicker table thead tr:last-child th.dow, .datepicker th.dow {color:var(--az); font-size:10px;
   font-weight:800; text-transform:uppercase; padding:8px 0 4px; letter-spacing:.4px;}
@@ -929,8 +962,11 @@ html, body {margin:0; padding:0; height:100%; overflow:hidden;
 .datepicker table tr td span.month:hover, .datepicker table tr td span.year:hover {background:#e3f0fb !important;}
 .datepicker table tr td span.focused {background:#e3f0fb !important;}
 
-/* ---- Menú de listas en celular (en lugar del selector nativo) ---- */
-.menu-sel {position:fixed; z-index:3000; display:none; background:rgba(44,52,60,.9);
+/* ---- Contorno de Perú (PC y celular): sombra sutil solo hacia afuera (canvas) ---- */
+.sombra-pais-canvas {position:absolute; left:0; top:0; z-index:401; pointer-events:none;}
+
+/* ---- Menú de listas (en lugar del selector nativo) ---- */
+.menu-sel {position:fixed; z-index:3000; display:none; background:rgba(44,52,60,.68);
   -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px); border-radius:14px; padding:4px 0;
   box-shadow:0 8px 24px rgba(0,0,0,.4); overflow-y:auto; -webkit-overflow-scrolling:touch;
   border:1px solid rgba(255,255,255,.12);}
@@ -938,6 +974,7 @@ html, body {margin:0; padding:0; height:100%; overflow:hidden;
   white-space:nowrap; cursor:pointer;}
 .menu-sel div.sel:before {content:'\2713'; position:absolute; left:11px; top:8px; font-size:12px;}
 .menu-sel div:active {background:rgba(255,255,255,.16);}
+.menu-sel div {break-inside:avoid;}
 
 /* ---- CELULAR: iconos y letras más pequeños, ventanas del tamaño de la leyenda ---- */
 @media (max-width: 820px) {
@@ -1168,6 +1205,65 @@ html, body {margin:0; padding:0; height:100%; overflow:hidden;
 .ventana-valores, .ventana-coord, .panel-result, .dibujo-ayuda {
   -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);
   border:1px solid rgba(255,255,255,.35);}
+
+/* =====================================================================
+   AJUSTES V5 (solo PC): pastilla blanca menos transparente; menú lateral pegado
+   a los bordes (sin esquinas redondeadas), letras de nuevo más grandes y repartidas
+   ===================================================================== */
+@media (min-width: 821px) {
+  /* pastilla de filtros: vuelve al blanco, un poco menos transparente */
+  .filtros {background:linear-gradient(135deg, rgba(255,255,255,.93), rgba(255,255,255,.78));
+    border:1px solid rgba(255,255,255,.85); box-shadow:0 6px 22px rgba(8,59,107,.25);}
+  .filtros .f-lab {color:#4f6378;}
+  .filtros select {background-color:rgba(255,255,255,.85); border-color:rgba(11,83,148,.22);}
+  .filtros select:disabled {background-color:rgba(236,240,244,.6); color:#9aa7b4;}
+  .btn-reset {background:rgba(255,255,255,.85); border-color:rgba(11,83,148,.22);}
+  .filtros .input-daterange .form-control {background:rgba(255,255,255,.85); border-color:rgba(11,83,148,.22);}
+  .filtros .input-daterange .input-group-addon,
+  .filtros .input-daterange .input-group-text {color:#555;}
+  .f-sep {background:#dde3ea;}
+
+  /* menú lateral: pegado arriba, abajo e izquierda, sin bordes redondeados */
+  .panel-lateral {top:0; left:0; bottom:0; width:250px; border-radius:0; border:0;
+    border-right:1px solid rgba(255,255,255,.12); box-shadow:4px 0 16px rgba(0,0,0,.3);
+    background:rgba(12,20,29,.86);}
+  .panel-lateral .marca {padding:16px 14px 12px;}
+  .marca-tit {font-size:14px;}
+  .marca-sub {font-size:12px; margin-top:5px;}
+  .marca-det {font-size:10px; margin-top:3px;}
+  .panel-lateral .etiqueta-temas {padding:10px 16px; font-size:10px;}
+  .panel-lateral summary {padding:clamp(9px, 1.5vh, 16px) 16px; font-size:11.5px;}
+  .panel-lateral .contenido {padding:clamp(8px, 1.6vh, 18px) 16px clamp(10px, 2vh, 22px);}
+  .panel-lateral .form-group, .panel-lateral .shiny-input-container {margin-bottom:6px;}
+  .panel-lateral .control-label {margin-bottom:5px; font-size:12px;}
+  .panel-lateral .radio {margin:clamp(5px, 1vh, 10px) 0;}
+  .panel-lateral .radio label {font-size:12px;}
+  .panel-lateral .nota-info {margin-top:6px; font-size:11px;}
+  .panel-lateral .ley-tit {margin:0 0 8px; font-size:11.5px;}
+  .panel-lateral .ley-barra {height:11px;}
+  .panel-lateral .ley-marcas {margin:2px 0 clamp(6px, 1.2vh, 12px); font-size:9.5px;}
+  .panel-lateral .ley-fila {margin:clamp(3px, .6vh, 6px) 0; font-size:11px;}
+  .panel-lateral .ley-sw {width:26px; height:12px;}
+  .panel-lateral .irs-grid {display:block;}
+  .panel-lateral .irs {height:50px;}
+
+  .filtros {left:260px; max-width:calc(100% - 260px - 175px);}
+  .leaflet-top.leaflet-left, .leaflet-bottom.leaflet-left {margin-left:252px;}
+  .panel-result {left:260px;}
+
+  /* listas desplegables de Departamento / Provincia / Distrito (solo PC):
+     menú oscuro con check, con la misma transparencia que la pastilla de filtros */
+  .menu-sel {overflow:visible; background:rgba(44,52,60,.85); -webkit-backdrop-filter:blur(14px) saturate(1.3);
+    backdrop-filter:blur(14px) saturate(1.3); border:1px solid rgba(255,255,255,.18);
+    box-shadow:0 8px 24px rgba(0,0,0,.35);}
+  .menu-sel div:hover {background:rgba(255,255,255,.16);}
+}
+@media (min-width: 821px) and (max-width: 1100px) {
+  .panel-lateral {width:215px;}
+  .filtros {left:225px; max-width:calc(100% - 225px - 160px);}
+  .leaflet-top.leaflet-left, .leaflet-bottom.leaflet-left {margin-left:217px;}
+  .panel-result {left:225px;}
+}
 )---"
 
 JS_CODIGO <- r"---(
@@ -1200,14 +1296,80 @@ JS_CODIGO <- r"---(
 
   // Líneas en azul (antes negras)
   var ESTILO = {
-    base:  { color: '#2a7fd4', weight: 1.4, opacity: 1, fillColor: '#ffffff', fillOpacity: 0.03 },
+    base:  { color: '#165a9f', weight: 1.3, opacity: 1, fillColor: '#ffffff', fillOpacity: 0.03 },
     hover: { color: '#0b5394', weight: 3, opacity: 1, fillColor: '#0b5394', fillOpacity: 0.22 },
     sel:   { color: '#0b5394', weight: 3.5, opacity: 1, fillColor: '#0b5394', fillOpacity: 0.12 },
-    ctx:   { color: '#2a7fd4', weight: 1, opacity: 0.85, fill: false },
-    peru:  { color: '#6fa8dc', weight: 0.8, opacity: 0.8, fill: false },
+    ctx:   { color: '#165a9f', weight: 1.2, opacity: 0.95, fill: false },
+    // límites departamentales de todo el Perú: delgados, azul algo más oscuro que el original, sin sombra
+    peru:  { color: '#000000', weight: 0.4, opacity: 0.75, fill: false },
+    // contorno del Perú: azul oscuro; la sombra se dibuja solo hacia afuera
+    pais:  { color: '#0a3566', weight: 0.9, opacity: 1, fill: false },
+    paisSombra: { stroke: false, fill: true, fillColor: '#000000', fillOpacity: 1,
+                  className: 'lim-pais-sombra' },
     casing: { color: '#ffffff', weight: 7, opacity: 0.9, fill: false },
     borde: { color: '#0b5394', weight: 3.5, opacity: 1, fill: false }
   };
+
+  // Sombra sutil solo por fuera del contorno del Perú. Se dibuja en un canvas
+  // (funciona igual en PC, Android y iPhone/Safari; los filtros SVG no funcionan en Safari).
+  var sombraCanvas = null, sombraRAF = null;
+
+  function sombraDibujar() {
+    if (!sombraCanvas || !mapa || !DATA || !DATA.pais) { return; }
+    var tam = mapa.getSize(), dpr = window.devicePixelRatio || 1;
+    var w = Math.round(tam.x * dpr), h = Math.round(tam.y * dpr);
+    if (!w || !h) { return; }
+    if (sombraCanvas.width !== w) { sombraCanvas.width = w; }
+    if (sombraCanvas.height !== h) { sombraCanvas.height = h; }
+    sombraCanvas.style.width = tam.x + 'px';
+    sombraCanvas.style.height = tam.y + 'px';
+    var ctx = sombraCanvas.getContext('2d');
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    ctx.scale(dpr, dpr);
+    ctx.beginPath();
+    DATA.pais.features.forEach(function (f) {
+      var g = f.geometry;
+      if (!g) { return; }
+      var polis = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
+      polis.forEach(function (p) {
+        p.forEach(function (anillo) {
+          anillo.forEach(function (c, i) {
+            var pt = mapa.latLngToContainerPoint([c[1], c[0]]);
+            if (i === 0) { ctx.moveTo(pt.x, pt.y); } else { ctx.lineTo(pt.x, pt.y); }
+          });
+          ctx.closePath();
+        });
+      });
+    });
+    // 1) se dibuja el país con sombra; 2) se borra el país: queda solo la sombra exterior
+    ctx.save();
+    ctx.shadowColor = 'rgba(8,59,107,0.6)';
+    ctx.shadowBlur = 8 * dpr;
+    ctx.fillStyle = '#000';
+    ctx.fill('evenodd');
+    ctx.restore();
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.fillStyle = '#000';
+    ctx.fill('evenodd');
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  function sombraProgramar() {
+    if (sombraRAF) { return; }
+    sombraRAF = requestAnimationFrame(function () {
+      sombraRAF = null;
+      sombraDibujar();
+    });
+  }
+
+  function sombraCrear() {
+    if (sombraCanvas || !mapa) { return; }
+    sombraCanvas = document.createElement('canvas');
+    sombraCanvas.className = 'sombra-pais-canvas';
+    mapa.getContainer().appendChild(sombraCanvas);
+    mapa.on('move zoom moveend zoomend viewreset resize', sombraProgramar);
+  }
 
   function obtenerMapa() {
     if (window.mapaLeaflet) { return window.mapaLeaflet; }
@@ -1324,6 +1486,11 @@ JS_CODIGO <- r"---(
     grupo.clearLayers();
     if (DATA.per) {
       agregar(contorno(DATA.per, null, ESTILO.peru));
+    }
+    if (DATA.pais) {
+      agregar(contorno(DATA.pais, null, ESTILO.pais));
+      sombraCrear();
+      sombraProgramar();
     }
     var d = estado.dep, p = estado.prov, s = estado.dist;
     if (!d) {
@@ -2764,6 +2931,13 @@ JS_CODIGO <- r"---(
       },
       _act: function () {
         var map = this._map, maxPx = 140;
+        // el largo máximo de la barra se ajusta al ancho real del recuadro (PC y celular)
+        var caja = this._lab && this._lab.parentNode;
+        if (caja && caja.clientWidth) {
+          var cs = window.getComputedStyle(caja);
+          var interno = caja.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+          maxPx = Math.max(60, Math.min(140, Math.floor(interno) - 2));
+        }
         var tam = map.getSize();
         if (!tam.x || !tam.y) { return; }
         var y = tam.y / 2;
@@ -2956,7 +3130,8 @@ JS_CODIGO <- r"---(
         dep: JSON.parse(m.dep),
         prov: JSON.parse(m.prov),
         dist: JSON.parse(m.dist),
-        per: m.per ? JSON.parse(m.per) : null
+        per: m.per ? JSON.parse(m.per) : null,
+        pais: m.pais ? JSON.parse(m.pais) : null
       };
       diagEstado.limites = 'recibidos';
       diag();
@@ -3075,7 +3250,8 @@ JS_MOVIL <- r"---(
     window.addEventListener('resize', medir);
     if (window.ResizeObserver && f) { new ResizeObserver(medir).observe(f); }
 
-    // ---- Lista desplegable propia en celular (fondo oscuro translúcido, letra pequeña) ----
+    // ---- Lista desplegable propia (fondo oscuro translúcido, con check) ----
+    // Se usa en celular y también en PC (en PC toma la transparencia de la pastilla de filtros)
     var menuSel = document.createElement('div');
     menuSel.className = 'menu-sel';
     document.body.appendChild(menuSel);
@@ -3101,18 +3277,33 @@ JS_MOVIL <- r"---(
         menuSel.appendChild(d);
       });
       menuSel.style.minWidth = Math.max(r.width, 150) + 'px';
+      menuSel.style.columnCount = '';
+      menuSel.style.maxHeight = '';
       menuSel.style.display = 'block';
+      if (esMovil()) {
+        // celular: lista con desplazamiento (sin cambios)
+        menuSel.style.maxHeight = Math.max(120, Math.min(window.innerHeight * 0.46,
+          window.innerHeight - r.bottom - 16)) + 'px';
+      } else {
+        // PC: todas las opciones en una sola ventana, sin barra de desplazamiento.
+        // Si no caben en una columna, se reparten en varias columnas.
+        var disp = Math.max(160, window.innerHeight - r.bottom - 20);
+        var alto = menuSel.scrollHeight;
+        if (alto > disp) {
+          var cols = Math.min(4, Math.ceil(alto / disp));
+          menuSel.style.columnCount = String(cols);
+          menuSel.style.columnGap = '0';
+        }
+      }
       var left = Math.min(r.left, window.innerWidth - menuSel.offsetWidth - 8);
       menuSel.style.left = Math.max(8, left) + 'px';
       menuSel.style.top = (r.bottom + 4) + 'px';
-      menuSel.style.maxHeight = Math.max(120, Math.min(window.innerHeight * 0.46,
-        window.innerHeight - r.bottom - 16)) + 'px';
       abiertoPara = sel;
       tAbierto = Date.now();
     }
 
     function interceptar(e) {
-      if (!esMovil() || !e.target || !e.target.closest) { return; }
+      if (!e.target || !e.target.closest) { return; }
       var sel = e.target.closest('.filtros select');
       if (!sel) { return; }
       e.preventDefault();
@@ -3128,6 +3319,10 @@ JS_MOVIL <- r"---(
       if (!e.target.closest) { return; }
       if (!e.target.closest('.menu-sel') && !e.target.closest('.filtros select')) { cerrarSel(); }
     });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && abiertoPara) { cerrarSel(); }
+    });
+    window.addEventListener('resize', cerrarSel);
 
     // ---- La leyenda se minimiza al tocar cualquier parte fuera de ella (mapa incluido) ----
     document.addEventListener('click', function (e) {
@@ -3375,7 +3570,7 @@ server <- function(input, output, session) {
     req(lim)
     session$sendCustomMessage("cargar_limites", list(
       dep = lim$dep$geojson, prov = lim$prov$geojson,
-      dist = lim$dist$geojson, per = lim$per$geojson))
+      dist = lim$dist$geojson, per = lim$per$geojson, pais = lim$pais$geojson))
     LIM(lim)
   })
   
