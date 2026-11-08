@@ -3437,13 +3437,11 @@ desactivar <- function(x) {
     htmltools::tagQuery(x)$find("select")$addAttrs(disabled = "disabled")$allTags(),
     error = function(e) x)
 }
+
+
 # -----------------------------------------------------------------------------
 # Pantalla de carga (se adapta al modo claro/oscuro del usuario)
 # -----------------------------------------------------------------------------
-SPLASH_RAYOS <- paste0(sapply(seq(0, 330, by = 30), function(a)
-  sprintf('<path d="M50 4 L57 24 L43 24 Z" transform="rotate(%d 50 50)"/>', a)),
-  collapse = "")
-
 LOGO_OSC <- base64enc::dataURI(file = "www/logo_oscuro.png", mime = "image/png")
 LOGO_CLA <- base64enc::dataURI(file = "www/logo_claro.png",  mime = "image/png")
 
@@ -3451,9 +3449,9 @@ SPLASH_HTML <- paste0(
   '<div id="splash"><div class="sp-glow"></div>',
   '<img class="sp-img sp-osc" src="', LOGO_OSC, '" alt="SENAMHI">',
   '<img class="sp-img sp-cla" src="', LOGO_CLA, '" alt="SENAMHI">',
-  '<div class="sp-sub">VISOR AGROMETEOROLÓGICO · DZ3</div>',
+  '<div class="sp-sub">VISOR DE ÍNDICES ESPECTRALES · DZ3</div>',
   '<div class="sp-barra"><i id="sp-bar"></i></div>',
-  '<div class="sp-txt"><span id="sp-texto">CARGANDO</span><b class="sp-pts"></b></div>',
+  '<div class="sp-txt"><span>CARGANDO</span><b class="sp-pts"><i>.</i><i>.</i><i>.</i></b></div>',
   '</div>')
 
 SPLASH_CSS <- r"---(
@@ -3465,13 +3463,11 @@ SPLASH_CSS <- r"---(
 .sp-glow {position:absolute; inset:0; pointer-events:none;
   background:radial-gradient(circle at 50% 42%, rgba(253,197,15,.16), transparent 52%);
   animation:sp-resp 3.2s ease-in-out infinite;}
-.sp-logo {position:relative; width:150px; height:150px; display:flex; align-items:center;
-  justify-content:center; animation:sp-flota 3.2s ease-in-out infinite;}
-.sp-sol {position:absolute; inset:0; width:100%; height:100%; animation:sp-gira 26s linear infinite;
-  filter:drop-shadow(0 0 14px rgba(253,197,15,.45));}
-.sp-nombre {position:relative; font-size:27px; font-weight:800; font-style:italic; letter-spacing:.3px;
-  color:#fff; text-shadow:0 1px 6px rgba(8,20,35,.75), 0 0 2px rgba(8,20,35,.9);}
-.sp-sub {margin-top:14px; font-size:10px; letter-spacing:2px; font-weight:600; color:#8fa3b5;}
+.sp-img {position:relative; width:min(230px,60vw); height:auto;
+  animation:sp-flota 3.2s ease-in-out infinite;}
+.sp-cla {display:none;}
+.sp-sub {margin-top:16px; font-size:12px; letter-spacing:2.5px; font-weight:800; color:#b9c8d6;
+  text-align:center; padding:0 16px;}
 .sp-barra {margin-top:22px; width:min(240px,62vw); height:4px; border-radius:4px; overflow:hidden;
   background:rgba(255,255,255,.14);}
 .sp-barra i {display:block; position:relative; height:100%; width:8%; border-radius:4px;
@@ -3479,31 +3475,29 @@ SPLASH_CSS <- r"---(
 .sp-barra i:after {content:''; position:absolute; top:0; bottom:0; width:40%;
   background:linear-gradient(90deg,transparent,rgba(255,255,255,.65),transparent);
   animation:sp-brillo 1.4s ease-in-out infinite;}
-.sp-txt {margin-top:14px; font-size:12px; font-weight:700; letter-spacing:1.4px; color:#cfd8e0;
+.sp-txt {margin-top:16px; font-size:13px; font-weight:800; letter-spacing:2px; color:#e3eaf1;
   display:flex; align-items:baseline;}
-.sp-pts:after {content:''; animation:sp-pts 1.4s steps(1) infinite;}
-@keyframes sp-gira {to {transform:rotate(360deg);}}
+.sp-pts {display:inline-flex;}
+.sp-pts i {font-style:normal; opacity:.25; animation:sp-punto 1.4s ease-in-out infinite;}
+.sp-pts i:nth-child(2) {animation-delay:.2s;}
+.sp-pts i:nth-child(3) {animation-delay:.4s;}
+@keyframes sp-punto {0%,100% {opacity:.25;} 40% {opacity:1;}}
 @keyframes sp-flota {50% {transform:translateY(-6px);}}
 @keyframes sp-resp {50% {opacity:.45;}}
 @keyframes sp-brillo {from {left:-45%;} to {left:110%;}}
-@keyframes sp-pts {0% {content:'';} 25% {content:'.';} 50% {content:'..';} 75% {content:'...';}}
 @media (prefers-color-scheme: light) {
-  #splash {background:#f7f9fc; color:#0b5394;}
-  .sp-glow {background:radial-gradient(circle at 50% 42%, rgba(253,197,15,.28), transparent 52%);}
-  .sp-nombre {color:#0b5394; text-shadow:0 0 6px rgba(255,255,255,.9), 0 0 2px #fff;}
-  .sp-sub {color:#5b7186;}
-  .sp-barra {background:rgba(11,83,148,.14);}
-  .sp-barra i {background:linear-gradient(90deg,#0b5394,#3b9be6);}
-  .sp-txt {color:#4a5d70;}
-}
-@media (prefers-reduced-motion: reduce) {
-  .sp-sol, .sp-logo, .sp-glow {animation:none;}
-}
-.sp-img {width:min(230px,60vw); height:auto;}
-.sp-cla {display:none;}
-@media (prefers-color-scheme: light) {
+  #splash {background:#f3f7fc; color:#0b5394;}
   .sp-osc {display:none;}
   .sp-cla {display:block;}
+  .sp-glow {background:radial-gradient(circle at 50% 42%, rgba(30,120,210,.30), rgba(30,120,210,.10) 38%, transparent 62%);}
+  .sp-sub {color:#2f5f94;}
+  .sp-barra {background:rgba(11,83,148,.20);}
+  .sp-barra i {background:linear-gradient(90deg,#0b5394,#2f8ee0);}
+  .sp-txt {color:#0b5394;}
+}
+@media (prefers-reduced-motion: reduce) {
+  .sp-img, .sp-glow, .sp-pts i {animation:none;}
+  .sp-pts i {opacity:1;}
 }
 )---"
 
@@ -3512,10 +3506,10 @@ SPLASH_JS <- r"---(
   var t0 = Date.now(), terminado = false;
   function el(id) { return document.getElementById(id); }
 
+  // Solo avanza la barra; el texto siempre dice CARGANDO...
   function paso(m) {
     if (terminado) { return; }
     if (m.pct !== undefined && el('sp-bar')) { el('sp-bar').style.width = m.pct + '%'; }
-    if (m.texto && el('sp-texto')) { el('sp-texto').textContent = m.texto; }
   }
 
   window.splashFin = function () {
@@ -3542,6 +3536,10 @@ SPLASH_JS <- r"---(
   else { $(document).on('shiny:connected', registrar); }
 })();
 )---"
+
+
+
+
 ui <- function(request) {
   hoy <- hoy_pe()
   fluidPage(
