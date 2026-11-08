@@ -3496,6 +3496,14 @@ SPLASH_CSS <- r"---(
   .sp-barra {background:rgba(11,83,148,.22);}
   .sp-txt {color:#020d1a;}
 }
+/* Solo celular: el contenido sube un poco y el resplandor lo acompaña */
+@media (max-width: 820px) {
+  #splash {box-sizing:border-box; padding-bottom:24vh;}
+  .sp-glow {background:radial-gradient(circle at 50% 32%, rgba(253,197,15,.16), transparent 52%);}
+}
+@media (max-width: 820px) and (prefers-color-scheme: light) {
+  .sp-glow {background:radial-gradient(circle at 50% 32%, rgba(11,83,148,.40), rgba(11,83,148,.16) 40%, transparent 68%);}
+}
 @media (prefers-reduced-motion: reduce) {
   .sp-img, .sp-glow, .sp-pts i {animation:none;}
   .sp-pts i {opacity:1;}
