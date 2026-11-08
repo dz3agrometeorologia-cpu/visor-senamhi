@@ -1639,23 +1639,30 @@ JS_CODIGO <- r"---(
         var id = String(f.properties[campoId]);
         var nombre = String(f.properties[campoNom]);
 
-        // La etiqueta se centra en su propio polígono
-        var pe = puntoEtiqueta(f);
-        if (pe) { lyr.getCenter = function () { return pe; }; }
+               if (nivel === 'dep') {
+          // Departamentos: sin nombre fijo; el nombre aparece al pasar el cursor
+          lyr.bindTooltip(nombre, {
+            sticky: true, direction: 'top', className: 'etq-unidad'
+          });
+        } else {
+          // Provincias y distritos: etiqueta fija centrada en su polígono
+          var pe = puntoEtiqueta(f);
+          if (pe) { lyr.getCenter = function () { return pe; }; }
 
-        lyr.bindTooltip(nombre, {
-          permanent: true, direction: 'center', className: 'etq-unidad'
-        });
+          lyr.bindTooltip(nombre, {
+            permanent: true, direction: 'center', className: 'etq-unidad'
+          });
 
-        // Posición fija: se fuerza directamente en el tooltip al añadir la capa al mapa
-        var fija = posicionFija(nombre);
-        if (fija) {
-          var colocar = function () {
-            var t = lyr.getTooltip();
-            if (t) { t.setLatLng(fija); }
-          };
-          lyr.on('add', colocar);
-          lyr.on('tooltipopen', colocar);
+          // Posición fija: se fuerza directamente en el tooltip al añadir la capa al mapa
+          var fija = posicionFija(nombre);
+          if (fija) {
+            var colocar = function () {
+              var t = lyr.getTooltip();
+              if (t) { t.setLatLng(fija); }
+            };
+            lyr.on('add', colocar);
+            lyr.on('tooltipopen', colocar);
+          }
         }
 
         // Relleno al pasar el mouse. Tras girar la rueda o hacer zoom no se vuelve a pintar
