@@ -625,7 +625,7 @@ html, body {margin:0; padding:0; height:100%; overflow:hidden;
   background-position:center !important; border-radius:8px;
   background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230b5394' stroke-width='2' stroke-linejoin='round' stroke-linecap='round'><path d='M12 2 2 7l10 5 10-5-10-5z'/><path d='m2 12 10 5 10-5'/><path d='m2 17 10 5 10-5'/></svg>") !important;}
 .leaflet-control-layers-expanded {padding:8px 12px; color:#222;}
-.escala-ctrl {width:164px; box-sizing:border-box; background:rgba(255,255,255,.72);
+.escala-ctrl {width:max-content; box-sizing:border-box; background:rgba(255,255,255,.72);
   -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px); border-radius:8px;
   padding:6px 12px 7px; box-shadow:0 1px 4px rgba(0,0,0,.25); font-size:10.5px;
   font-weight:600; color:var(--az-osc); margin:0 0 10px 10px; line-height:1;}
@@ -1341,7 +1341,7 @@ JS_CODIGO <- r"---(
     // límites departamentales de todo el Perú: delgados, azul algo más oscuro que el original, sin sombra
     peru:  { color: '#000000', weight: 0.4, opacity: 0.75, fill: false },
     // contorno del Perú: negro; la sombra se dibuja solo hacia afuera
-    pais:  { color: '#000000', weight: 1.2, opacity: 1, fill: false },
+    pais:  { color: '#000000', weight: 1, opacity: 1, fill: false },
     paisSombra: { stroke: false, fill: true, fillColor: '#000000', fillOpacity: 1,
                   className: 'lim-pais-sombra' },
     casing: { color: '#ffffff', weight: 7, opacity: 0.9, fill: false },
@@ -1365,32 +1365,41 @@ JS_CODIGO <- r"---(
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, w, h);
     ctx.scale(dpr, dpr);
-    ctx.beginPath();
-    DATA.pais.features.forEach(function (f) {
-      var g = f.geometry;
-      if (!g) { return; }
-      var polis = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
-      polis.forEach(function (p) {
-        p.forEach(function (anillo) {
-          anillo.forEach(function (c, i) {
-            var pt = mapa.latLngToContainerPoint([c[1], c[0]]);
-            if (i === 0) { ctx.moveTo(pt.x, pt.y); } else { ctx.lineTo(pt.x, pt.y); }
+    function trazarPais() {
+      DATA.pais.features.forEach(function (f) {
+        var g = f.geometry;
+        if (!g) { return; }
+        var polis = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
+        polis.forEach(function (p) {
+          p.forEach(function (anillo) {
+            anillo.forEach(function (c, i) {
+              var pt = mapa.latLngToContainerPoint([c[1], c[0]]);
+              if (i === 0) { ctx.moveTo(pt.x, pt.y); } else { ctx.lineTo(pt.x, pt.y); }
+            });
+            ctx.closePath();
           });
-          ctx.closePath();
         });
       });
-    });
-    // 1) se dibuja el país con sombra negra; 2) se borra el país: queda solo la sombra exterior
+    }
+    // Sombra solo por FUERA del contorno: se recorta todo lo que queda fuera del país
+    // y se dibuja el contorno varias veces, cada vez más ancho y muy transparente
+    // (degradado negro que se desvanece hacia afuera).
     ctx.save();
-    ctx.shadowColor = 'rgba(0,0,0,0.55)';
-    ctx.shadowBlur = 12 * dpr;
-    ctx.fillStyle = '#000';
-    ctx.fill('evenodd');
+    ctx.beginPath();
+    ctx.rect(-10, -10, tam.x + 20, tam.y + 20);
+    trazarPais();
+    ctx.clip('evenodd');
+    ctx.beginPath();
+    trazarPais();
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(0,0,0,0.055)';
+    var pasos = 16, paso = 1.8, i2;
+    for (i2 = 1; i2 <= pasos; i2++) {
+      ctx.lineWidth = 2 * paso * i2;
+      ctx.stroke();
+    }
     ctx.restore();
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.fillStyle = '#000';
-    ctx.fill('evenodd');
-    ctx.globalCompositeOperation = 'source-over';
   }
 
   function sombraProgramar() {
@@ -1407,6 +1416,25 @@ JS_CODIGO <- r"---(
     sombraCanvas.className = 'sombra-pais-canvas';
     mapa.getContainer().appendChild(sombraCanvas);
     mapa.on('move zoom moveend zoomend viewreset resize', sombraProgramar);
+  }
+
+  // Deja solo el contorno exterior del Perú continental: sin huecos, islas ni
+  // formas sueltas (por ejemplo las piezas del lago Titicaca)
+  function soloContornoPais(gj) {
+    var mejor = null, mejorArea = -1;
+    (gj.features || []).forEach(function (f) {
+      var g = f.geometry;
+      if (!g) { return; }
+      var polis = g.type === 'Polygon' ? [g.coordinates] : (g.coordinates || []);
+      polis.forEach(function (p) {
+        if (!p || !p[0]) { return; }
+        var a = Math.abs(areaFirmada(p[0]));
+        if (a > mejorArea) { mejorArea = a; mejor = p[0]; }
+      });
+    });
+    if (!mejor) { return gj; }
+    return { type: 'FeatureCollection', features: [
+      { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [mejor] } } ] };
   }
 
   function obtenerMapa() {
@@ -2970,19 +2998,9 @@ JS_CODIGO <- r"---(
       _act: function () {
         var map = this._map, maxPx = 140;
         var movil = window.matchMedia('(max-width: 820px)').matches;
-        if (movil) {
-          // celular: el recuadro blanco se ajusta a la barra (CSS: width:max-content),
-          // así nada se sale del fondo ni quedan espacios vacíos
-          maxPx = 110;
-        } else {
-          // PC: el largo máximo de la barra se ajusta al ancho real del recuadro
-          var caja = this._lab && this._lab.parentNode;
-          if (caja && caja.clientWidth) {
-            var cs = window.getComputedStyle(caja);
-            var interno = caja.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-            maxPx = Math.max(60, Math.min(140, Math.floor(interno) - 2));
-          }
-        }
+        // PC y celular: el recuadro blanco se ajusta a la barra (CSS: width:max-content),
+        // así nada se sale del fondo ni quedan espacios vacíos
+        maxPx = movil ? 110 : 130;
         var tam = map.getSize();
         if (!tam.x || !tam.y) { return; }
         var y = tam.y / 2;
@@ -3032,7 +3050,7 @@ JS_CODIGO <- r"---(
     // En la vista alejada no se muestra, aunque se mueva el mapa arriba/abajo.
     var mostrar = false, vb = mapa.getBounds();
     if (!sel && tam.x && tam.y) {
-      mostrar = mapa.getZoom() >= mapa.getMinZoom() + 1;
+      mostrar = mapa.getZoom() >= mapa.getMinZoom() + 0.5;
     }
     if (mostrar) {
       miniRect.setBounds(vb);
@@ -3187,7 +3205,7 @@ JS_CODIGO <- r"---(
 
     Shiny.addCustomMessageHandler('cargar_pais', function (m) {
       if (!DATA) { DATA = {}; }
-      DATA.pais = m.pais ? JSON.parse(m.pais) : null;
+      DATA.pais = m.pais ? soloContornoPais(JSON.parse(m.pais)) : null;
       if (DATA.dep) { render(); }
     });
 
@@ -3419,7 +3437,103 @@ desactivar <- function(x) {
     htmltools::tagQuery(x)$find("select")$addAttrs(disabled = "disabled")$allTags(),
     error = function(e) x)
 }
+# -----------------------------------------------------------------------------
+# Pantalla de carga (se adapta al modo claro/oscuro del usuario)
+# -----------------------------------------------------------------------------
+SPLASH_RAYOS <- paste0(sapply(seq(0, 330, by = 30), function(a)
+  sprintf('<path d="M50 4 L57 24 L43 24 Z" transform="rotate(%d 50 50)"/>', a)),
+  collapse = "")
 
+SPLASH_HTML <- paste0(
+  '<div id="splash"><div class="sp-glow"></div>',
+  '<div class="sp-logo"><svg class="sp-sol" viewBox="0 0 100 100" fill="#fdc50f">',
+  SPLASH_RAYOS, '<circle cx="50" cy="50" r="30"/></svg>',
+  '<span class="sp-nombre">Senamhi</span></div>',
+  '<div class="sp-sub">VISOR AGROMETEOROLÓGICO · DZ3</div>',
+  '<div class="sp-barra"><i id="sp-bar"></i></div>',
+  '<div class="sp-txt"><span id="sp-texto">CARGANDO</span><b class="sp-pts"></b></div>',
+  '</div>')
+
+SPLASH_CSS <- r"---(
+#splash {position:fixed; inset:0; z-index:99999; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; background:#0f1722; color:#fff;
+  font-family:"Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+  transition:opacity .6s ease, visibility .6s ease;}
+#splash.fuera {opacity:0; visibility:hidden; pointer-events:none;}
+.sp-glow {position:absolute; inset:0; pointer-events:none;
+  background:radial-gradient(circle at 50% 42%, rgba(253,197,15,.16), transparent 52%);
+  animation:sp-resp 3.2s ease-in-out infinite;}
+.sp-logo {position:relative; width:150px; height:150px; display:flex; align-items:center;
+  justify-content:center; animation:sp-flota 3.2s ease-in-out infinite;}
+.sp-sol {position:absolute; inset:0; width:100%; height:100%; animation:sp-gira 26s linear infinite;
+  filter:drop-shadow(0 0 14px rgba(253,197,15,.45));}
+.sp-nombre {position:relative; font-size:27px; font-weight:800; font-style:italic; letter-spacing:.3px;
+  color:#fff; text-shadow:0 1px 6px rgba(8,20,35,.75), 0 0 2px rgba(8,20,35,.9);}
+.sp-sub {margin-top:14px; font-size:10px; letter-spacing:2px; font-weight:600; color:#8fa3b5;}
+.sp-barra {margin-top:22px; width:min(240px,62vw); height:4px; border-radius:4px; overflow:hidden;
+  background:rgba(255,255,255,.14);}
+.sp-barra i {display:block; position:relative; height:100%; width:8%; border-radius:4px;
+  background:linear-gradient(90deg,#fdc50f,#ffe27a); transition:width .7s ease; overflow:hidden;}
+.sp-barra i:after {content:''; position:absolute; top:0; bottom:0; width:40%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.65),transparent);
+  animation:sp-brillo 1.4s ease-in-out infinite;}
+.sp-txt {margin-top:14px; font-size:12px; font-weight:700; letter-spacing:1.4px; color:#cfd8e0;
+  display:flex; align-items:baseline;}
+.sp-pts:after {content:''; animation:sp-pts 1.4s steps(1) infinite;}
+@keyframes sp-gira {to {transform:rotate(360deg);}}
+@keyframes sp-flota {50% {transform:translateY(-6px);}}
+@keyframes sp-resp {50% {opacity:.45;}}
+@keyframes sp-brillo {from {left:-45%;} to {left:110%;}}
+@keyframes sp-pts {0% {content:'';} 25% {content:'.';} 50% {content:'..';} 75% {content:'...';}}
+@media (prefers-color-scheme: light) {
+  #splash {background:#f7f9fc; color:#0b5394;}
+  .sp-glow {background:radial-gradient(circle at 50% 42%, rgba(253,197,15,.28), transparent 52%);}
+  .sp-nombre {color:#0b5394; text-shadow:0 0 6px rgba(255,255,255,.9), 0 0 2px #fff;}
+  .sp-sub {color:#5b7186;}
+  .sp-barra {background:rgba(11,83,148,.14);}
+  .sp-barra i {background:linear-gradient(90deg,#0b5394,#3b9be6);}
+  .sp-txt {color:#4a5d70;}
+}
+@media (prefers-reduced-motion: reduce) {
+  .sp-sol, .sp-logo, .sp-glow {animation:none;}
+}
+)---"
+
+SPLASH_JS <- r"---(
+(function () {
+  var t0 = Date.now(), terminado = false;
+  function el(id) { return document.getElementById(id); }
+
+  function paso(m) {
+    if (terminado) { return; }
+    if (m.pct !== undefined && el('sp-bar')) { el('sp-bar').style.width = m.pct + '%'; }
+    if (m.texto && el('sp-texto')) { el('sp-texto').textContent = m.texto; }
+  }
+
+  window.splashFin = function () {
+    if (terminado) { return; }
+    terminado = true;
+    if (el('sp-bar')) { el('sp-bar').style.width = '100%'; }
+    var espera = Math.max(350, 1400 - (Date.now() - t0));  // se ve al menos 1.4 s
+    setTimeout(function () {
+      var s = el('splash');
+      if (!s) { return; }
+      s.classList.add('fuera');
+      setTimeout(function () { if (s.parentNode) { s.parentNode.removeChild(s); } }, 900);
+    }, espera);
+  };
+
+  // Seguro: si algo falla, la pantalla nunca se queda pegada
+  setTimeout(function () { window.splashFin(); }, 90000);
+
+  function registrar() {
+    Shiny.addCustomMessageHandler('splash_paso', function (m) { paso(m); });
+    Shiny.addCustomMessageHandler('splash_fin', function (m) { window.splashFin(); });
+  }
+  if (window.Shiny && Shiny.addCustomMessageHandler) { registrar(); }
+  else { $(document).on('shiny:connected', registrar); }
+})();
+)---"
 ui <- function(request) {
   hoy <- hoy_pe()
   fluidPage(
