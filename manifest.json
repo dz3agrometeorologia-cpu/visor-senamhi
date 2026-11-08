@@ -2270,7 +2270,13 @@
       "checksum": "8d915c69dddd983a171cafa01de2532d"
     },
     "app.R": {
-      "checksum": "90c265108e338028766efe7862804245"
+      "checksum": "9de0496cbd81f7599a2d67ee4f286a5d"
+    },
+    "www/logo_claro.png": {
+      "checksum": "2a92a9c0c43dcda21d1afabfd71b400c"
+    },
+    "www/logo_oscuro.png": {
+      "checksum": "de837a4b6f0fbfdf7121f709dd2d495e"
     },
     "www/logos.png": {
       "checksum": "222d405c8d069c86d02468ae9baf061c"

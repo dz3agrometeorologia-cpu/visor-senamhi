@@ -1461,7 +1461,7 @@ JS_CODIGO <- r"---(
   }
 
   function mostrarCarga() { $('#mapa-wrap').addClass('cargando'); }
-  function ocultarCarga() { $('#mapa-wrap').removeClass('cargando'); }
+  function ocultarCarga() { $('#mapa-wrap').removeClass('cargando'); if (window.splashFin) { window.splashFin(); } }
 
   function ajustarMinZoom() {
     if (!mapa || !PERU) { return; }
@@ -3444,11 +3444,13 @@ SPLASH_RAYOS <- paste0(sapply(seq(0, 330, by = 30), function(a)
   sprintf('<path d="M50 4 L57 24 L43 24 Z" transform="rotate(%d 50 50)"/>', a)),
   collapse = "")
 
+LOGO_OSC <- base64enc::dataURI(file = "www/logo_oscuro.png", mime = "image/png")
+LOGO_CLA <- base64enc::dataURI(file = "www/logo_claro.png",  mime = "image/png")
+
 SPLASH_HTML <- paste0(
   '<div id="splash"><div class="sp-glow"></div>',
-  '<div class="sp-logo"><svg class="sp-sol" viewBox="0 0 100 100" fill="#fdc50f">',
-  SPLASH_RAYOS, '<circle cx="50" cy="50" r="30"/></svg>',
-  '<span class="sp-nombre">Senamhi</span></div>',
+  '<img class="sp-img sp-osc" src="', LOGO_OSC, '" alt="SENAMHI">',
+  '<img class="sp-img sp-cla" src="', LOGO_CLA, '" alt="SENAMHI">',
   '<div class="sp-sub">VISOR AGROMETEOROLÓGICO · DZ3</div>',
   '<div class="sp-barra"><i id="sp-bar"></i></div>',
   '<div class="sp-txt"><span id="sp-texto">CARGANDO</span><b class="sp-pts"></b></div>',
@@ -3496,6 +3498,12 @@ SPLASH_CSS <- r"---(
 }
 @media (prefers-reduced-motion: reduce) {
   .sp-sol, .sp-logo, .sp-glow {animation:none;}
+}
+.sp-img {width:min(230px,60vw); height:auto;}
+.sp-cla {display:none;}
+@media (prefers-color-scheme: light) {
+  .sp-osc {display:none;}
+  .sp-cla {display:block;}
 }
 )---"
 
@@ -3548,8 +3556,11 @@ ui <- function(request) {
                               jsonlite::toJSON(lapply(VIS, function(v) v$clases), auto_unbox = TRUE),
                               ";"))),
       tags$script(HTML(JS_CODIGO)),
-      tags$script(HTML(JS_MOVIL))
+      tags$script(HTML(JS_MOVIL)),
+      tags$style(HTML(SPLASH_CSS)),
+      tags$script(HTML(SPLASH_JS))
     ),
+    HTML(SPLASH_HTML),
     div(class = "app-raiz",
         
         div(class = "cabecera",
@@ -3706,10 +3717,13 @@ server <- function(input, output, session) {
              })
   }
   
+  sp <- function(pct, texto) {
+    session$sendCustomMessage("splash_paso", list(pct = pct, texto = texto))
+  }
+  
   # ---- Conexión con Earth Engine (después de mostrar la página) -------------
   session$onFlushed(function() {
-    id <- showNotification("Conectando con Earth Engine…", duration = NULL,
-                           closeButton = FALSE, session = session)
+    sp(20, "CONECTANDO CON EARTH ENGINE")
     ok <- tryCatch({ asegurar_gee(); TRUE }, error = function(e) {
       message("Error al conectar con Earth Engine: ", conditionMessage(e))
       showNotification(paste("No se pudo conectar con Earth Engine:",
@@ -3717,15 +3731,13 @@ server <- function(input, output, session) {
                        type = "error", duration = NULL, session = session)
       FALSE
     })
-    removeNotification(id, session = session)
-    if (ok) gee_ok(TRUE)
+    if (ok) gee_ok(TRUE) else session$sendCustomMessage("splash_fin", TRUE)
   }, once = TRUE)
   
   # ---- Límites administrativos ----------------------------------------------
   observeEvent(gee_ok(), {
     req(gee_ok())
-    id <- showNotification("Cargando límites administrativos…", duration = NULL,
-                           closeButton = FALSE)
+    sp(50, "CARGANDO LÍMITES ADMINISTRATIVOS")
     lim <- tryCatch(cargar_limites(), error = function(e) {
       message("Error al cargar límites: ", conditionMessage(e))
       showNotification(paste("No se pudieron cargar los límites:",
@@ -3733,11 +3745,12 @@ server <- function(input, output, session) {
                        type = "error", duration = NULL)
       NULL
     })
-    removeNotification(id)
+    if (is.null(lim)) session$sendCustomMessage("splash_fin", TRUE)
     req(lim)
     session$sendCustomMessage("cargar_limites", list(
       dep = lim$dep$geojson, prov = lim$prov$geojson,
       dist = lim$dist$geojson, per = lim$per$geojson))
+    sp(80, "CALCULANDO NDVI Y NDMI")
     LIM(lim)
     # El contorno del Perú se calcula después de que el mapa ya muestra los límites
     session$onFlushed(function() {
