@@ -3455,10 +3455,12 @@ SPLASH_HTML <- paste0(
   '</div>')
 
 SPLASH_CSS <- r"---(
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@700;900&display=swap');
 #splash {position:fixed; inset:0; z-index:99999; display:flex; flex-direction:column;
   align-items:center; justify-content:center; background:#0f1722; color:#fff;
-  font-family:"Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+  font-family:"Roboto", "Helvetica Neue", Arial, sans-serif;
   transition:opacity .6s ease, visibility .6s ease;}
+#splash * {font-family:inherit;}
 #splash.fuera {opacity:0; visibility:hidden; pointer-events:none;}
 .sp-glow {position:absolute; inset:0; pointer-events:none;
   background:radial-gradient(circle at 50% 42%, rgba(253,197,15,.16), transparent 52%);
@@ -3466,7 +3468,7 @@ SPLASH_CSS <- r"---(
 .sp-img {position:relative; width:min(230px,60vw); height:auto;
   animation:sp-flota 3.2s ease-in-out infinite;}
 .sp-cla {display:none;}
-.sp-sub {margin-top:16px; font-size:12px; letter-spacing:2.5px; font-weight:800; color:#b9c8d6;
+.sp-sub {margin-top:16px; font-size:12px; letter-spacing:2.5px; font-weight:700; color:#b9c8d6;
   text-align:center; padding:0 16px;}
 .sp-barra {margin-top:22px; width:min(240px,62vw); height:4px; border-radius:4px; overflow:hidden;
   background:rgba(255,255,255,.14);}
@@ -3475,7 +3477,7 @@ SPLASH_CSS <- r"---(
 .sp-barra i:after {content:''; position:absolute; top:0; bottom:0; width:40%;
   background:linear-gradient(90deg,transparent,rgba(255,255,255,.65),transparent);
   animation:sp-brillo 1.4s ease-in-out infinite;}
-.sp-txt {margin-top:16px; font-size:13px; font-weight:800; letter-spacing:2px; color:#e3eaf1;
+.sp-txt {margin-top:16px; font-size:13px; font-weight:700; letter-spacing:2px; color:#e3eaf1;
   display:flex; align-items:baseline;}
 .sp-pts {display:inline-flex;}
 .sp-pts i {font-style:normal; opacity:.25; animation:sp-punto 1.4s ease-in-out infinite;}
