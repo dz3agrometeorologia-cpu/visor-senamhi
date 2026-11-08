@@ -1691,9 +1691,40 @@ JS_CODIGO <- r"---(
 
 
 
-  function render() {
+
+// Sin etiqueta fija: el nombre aparece al pasar el mouse.
+  function navegable(geojson, filtro, nivel, estiloLinea) {
+    var campoId = { dep: 'IDDPTO', prov: 'IDPROV', dist: 'IDDIST' }[nivel];
+    var campoNom = { dep: 'DEPARTAMEN', prov: 'PROVINCIA', dist: 'DISTRITO' }[nivel];
+    var estilo = L.extend({}, estiloLinea, { fill: true, fillColor: '#0b5394', fillOpacity: 0 });
+    var capa = L.geoJSON(geojson, {
+      filter: filtro,
+      style: function () { return estilo; },
+      onEachFeature: function (f, lyr) {
+        var id = String(f.properties[campoId]);
+        lyr.bindTooltip(String(f.properties[campoNom]),
+          { sticky: true, direction: 'top', className: 'etq-unidad' });
+        lyr.on('mouseover', function () {
+          if (sinResalte()) { return; }
+          lyr.setStyle({ fillOpacity: 0.12 });
+        });
+        lyr.on('mouseout', function () { capa.resetStyle(lyr); });
+        lyr.on('click', function () {
+          if (modoConsulta || dibujando) { return; }
+          Shiny.setInputValue('nav_click',
+            { nivel: nivel, id: id, n: Math.random() }, { priority: 'event' });
+        });
+      }
+    });
+    return capa;
+  }
+
+
+
+
+    function render() {
     if (!mapa || !DATA || !grupo) { return; }
-        hoverActual = null; hoverCapa = null; suprimida = null; rellenoOculto = false;
+    hoverActual = null; hoverCapa = null; suprimida = null; rellenoOculto = false;
     grupo.clearLayers();
     if (DATA.per) {
       agregar(contorno(DATA.per, null, ESTILO.peru));
@@ -1707,16 +1738,21 @@ JS_CODIGO <- r"---(
     if (!d) {
       agregar(interactiva(DATA.dep, null, 'dep', null, false));
     } else if (!p) {
-      agregar(contorno(DATA.dep, distinto('IDDPTO', d), ESTILO.ctx));
-      agregar(selecc(DATA.dep, igual('IDDPTO', d)));
+      // Otros departamentos: se puede hacer clic para ir a ellos
+      agregar(navegable(DATA.dep, distinto('IDDPTO', d), 'dep', ESTILO.ctx));
       agregar(interactiva(DATA.prov, igual('IDDPTO', d), 'prov', null, true));
+      // El contorno va al final para quedar encima de las líneas celestes
+      agregar(selecc(DATA.dep, igual('IDDPTO', d)));
     } else {
-      agregar(contorno(DATA.prov, function (f) {
+      // Otros departamentos (debajo) y otras provincias del mismo departamento: con clic
+      agregar(navegable(DATA.dep, distinto('IDDPTO', d), 'dep', ESTILO.ctx));
+      agregar(navegable(DATA.prov, function (f) {
         return String(f.properties.IDDPTO) === String(d) &&
                String(f.properties.IDPROV) !== String(p);
-      }, ESTILO.ctx));
-      agregar(selecc(DATA.prov, igual('IDPROV', p)));
+      }, 'prov', ESTILO.gCtx));
       agregar(interactiva(DATA.dist, igual('IDPROV', p), 'dist', s, true));
+      // El contorno va al final para quedar encima de las líneas celestes
+      agregar(selecc(DATA.prov, igual('IDPROV', p)));
     }
     asegurarGradiente();
     diagEstado.limites = 'sí (' + (!d ? 'departamentos' : (!p ? 'provincias' : 'distritos')) + ')';
