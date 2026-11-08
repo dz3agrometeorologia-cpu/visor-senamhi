@@ -3486,14 +3486,14 @@ SPLASH_CSS <- r"---(
 @keyframes sp-resp {50% {opacity:.45;}}
 @keyframes sp-brillo {from {left:-45%;} to {left:110%;}}
 @media (prefers-color-scheme: light) {
-  #splash {background:#f3f7fc; color:#0b5394;}
+  #splash {background:#e3ebf4; color:#061a33;}
   .sp-osc {display:none;}
   .sp-cla {display:block;}
-  .sp-glow {background:radial-gradient(circle at 50% 42%, rgba(30,120,210,.30), rgba(30,120,210,.10) 38%, transparent 62%);}
-  .sp-sub {color:#2f5f94;}
-  .sp-barra {background:rgba(11,83,148,.20);}
-  .sp-barra i {background:linear-gradient(90deg,#0b5394,#2f8ee0);}
-  .sp-txt {color:#0b5394;}
+  .sp-glow {background:radial-gradient(circle at 50% 42%, rgba(6,26,51,.50), rgba(6,26,51,.20) 40%, transparent 68%);}
+  .sp-sub {color:#061a33;}
+  .sp-barra {background:rgba(6,26,51,.26);}
+  .sp-barra i {background:linear-gradient(90deg,#031225,#061a33 45%,#0b3a6b);}
+  .sp-txt {color:#061a33;}
 }
 @media (prefers-reduced-motion: reduce) {
   .sp-img, .sp-glow, .sp-pts i {animation:none;}
