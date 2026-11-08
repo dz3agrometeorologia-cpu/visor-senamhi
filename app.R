@@ -317,14 +317,15 @@ def contorno_pais(ruta, error_m):
     try:
         # Lago Titicaca: el polígono de departamentos deja fuera la parte del lago que
         # corresponde al Perú y el contorno se desvía por la orilla. Se completa esa parte
-        # con el límite internacional oficial (LSIB) solo dentro de la zona del lago.
+        # con el límite internacional oficial (LSIB) solo dentro de la zona del lago
+        # (todas las operaciones pesadas se hacen únicamente en esa caja pequeña).
         lsib = (ee.FeatureCollection('USDOS/LSIB_SIMPLE/2017')
-                .filter(ee.Filter.eq('country_na', 'Peru')).geometry(100))
+                .filter(ee.Filter.eq('country_na', 'Peru')).geometry(200))
         caja = ee.Geometry.Rectangle([-70.6, -17.3, -68.5, -14.5])
-        lago = (lsib.intersection(caja, 100).difference(g, 100)
-                .buffer(-2500, 100).buffer(2500, 100))
-        g2 = (g.union(lago, 100).buffer(1500, 100).buffer(-1500, 100)
-              .simplify(error_m))
+        g_local = g.intersection(caja, 200)
+        lago = (lsib.intersection(caja, 200).difference(g_local, 200)
+                .buffer(-2500, 200).buffer(2800, 200))
+        g2 = g.union(lago, 200).simplify(error_m)
         info = g2.getInfo()
     except Exception:
         info = g.simplify(error_m).getInfo()
@@ -401,8 +402,51 @@ asegurar_gee <- function() {
 }
 
 # Límites administrativos: se leen una sola vez desde Earth Engine (simplificados)
+# Caché en disco: la primera vez se calculan los límites en Earth Engine y se guardan;
+# las siguientes veces (y otras sesiones) se leen del archivo y cargan casi al instante.
+# Si cambias los assets de límites, borra la carpeta ".cache_visor".
+ruta_cache <- function(nombre) {
+  d <- tryCatch({
+    x <- file.path(getwd(), ".cache_visor")
+    dir.create(x, showWarnings = FALSE)
+    if (dir.exists(x) && file.access(x, 2) == 0) x else tempdir()
+  }, error = function(e) tempdir())
+  file.path(d, nombre)
+}
+leer_cache <- function(nombre) {
+  f <- ruta_cache(nombre)
+  if (file.exists(f)) tryCatch(readRDS(f), error = function(e) NULL) else NULL
+}
+guardar_cache <- function(obj, nombre) {
+  try(saveRDS(obj, ruta_cache(nombre)), silent = TRUE)
+}
+
+# Contorno nacional: se calcula aparte (después de mostrar los límites) y se guarda en caché
+cargar_pais <- function() {
+  if (!is.null(CACHE$pais)) return(CACHE$pais)
+  p <- leer_cache("pais_v2.rds")
+  if (is.null(p)) {
+    message("Calculando contorno del Perú")
+    p <- tryCatch(
+      as.character(reticulate::py$contorno_pais(paste0(RUTA_ASSETS, "DEP_PERU"), 1000)),
+      error = function(e) {
+        message("No se pudo armar el contorno del Perú: ", conditionMessage(e))
+        NULL
+      })
+    if (!is.null(p)) guardar_cache(p, "pais_v2.rds")
+  }
+  CACHE$pais <- p
+  p
+}
+
 cargar_limites <- function() {
   if (!is.null(CACHE$lim)) return(CACHE$lim)
+  en_disco <- leer_cache("limites_v2.rds")
+  if (!is.null(en_disco)) {
+    message("Límites administrativos: leídos de la caché")
+    CACHE$lim <- en_disco
+    return(en_disco)
+  }
   leer <- function(nombre, campos, error_m) {
     r <- reticulate::py$limites_geojson(paste0(RUTA_ASSETS, nombre),
                                         as.list(campos), error_m)
@@ -421,14 +465,7 @@ cargar_limites <- function() {
                               "IDDPTO", "DEPARTAMEN"), 50),
     per  = leer("DEP_PERU", character(0), 1500)
   )
-  # Contorno nacional (si falla, el visor sigue funcionando sin él)
-  lim$pais <- tryCatch(
-    list(geojson = as.character(reticulate::py$contorno_pais(
-      paste0(RUTA_ASSETS, "DEP_PERU"), 800))),
-    error = function(e) {
-      message("No se pudo armar el contorno del Perú: ", conditionMessage(e))
-      list(geojson = NULL)
-    })
+  guardar_cache(lim, "limites_v2.rds")
   CACHE$lim <- lim
   lim
 }
@@ -1005,7 +1042,8 @@ html, body {margin:0; padding:0; height:100%; overflow:hidden;
   .aviso-mapa {font-size:11px; padding:6px 10px;}
   .spinner-mapa {font-size:11px; padding:4px 10px;}
   .leaflet-tooltip.etq-unidad {font-size:9px;}
-  .escala-ctrl {width:140px; font-size:9.5px; padding:4px 9px 5px; margin:0 0 8px 8px;}
+  /* escala: el recuadro se ajusta exactamente a la barra (nada sale del fondo, sin espacios vacíos) */
+  .escala-ctrl {width:max-content; max-width:none; font-size:9.5px; padding:4px 9px 5px; margin:0 0 8px 8px;}
 
   /* leyenda */
   .ley-movil {max-width:170px; bottom:44px; border-radius:10px;}
@@ -1302,8 +1340,8 @@ JS_CODIGO <- r"---(
     ctx:   { color: '#165a9f', weight: 1.2, opacity: 0.95, fill: false },
     // límites departamentales de todo el Perú: delgados, azul algo más oscuro que el original, sin sombra
     peru:  { color: '#000000', weight: 0.4, opacity: 0.75, fill: false },
-    // contorno del Perú: azul oscuro; la sombra se dibuja solo hacia afuera
-    pais:  { color: '#0a3566', weight: 0.9, opacity: 1, fill: false },
+    // contorno del Perú: negro; la sombra se dibuja solo hacia afuera
+    pais:  { color: '#000000', weight: 1.2, opacity: 1, fill: false },
     paisSombra: { stroke: false, fill: true, fillColor: '#000000', fillOpacity: 1,
                   className: 'lim-pais-sombra' },
     casing: { color: '#ffffff', weight: 7, opacity: 0.9, fill: false },
@@ -1342,10 +1380,10 @@ JS_CODIGO <- r"---(
         });
       });
     });
-    // 1) se dibuja el país con sombra; 2) se borra el país: queda solo la sombra exterior
+    // 1) se dibuja el país con sombra negra; 2) se borra el país: queda solo la sombra exterior
     ctx.save();
-    ctx.shadowColor = 'rgba(8,59,107,0.6)';
-    ctx.shadowBlur = 8 * dpr;
+    ctx.shadowColor = 'rgba(0,0,0,0.55)';
+    ctx.shadowBlur = 12 * dpr;
     ctx.fillStyle = '#000';
     ctx.fill('evenodd');
     ctx.restore();
@@ -2931,12 +2969,19 @@ JS_CODIGO <- r"---(
       },
       _act: function () {
         var map = this._map, maxPx = 140;
-        // el largo máximo de la barra se ajusta al ancho real del recuadro (PC y celular)
-        var caja = this._lab && this._lab.parentNode;
-        if (caja && caja.clientWidth) {
-          var cs = window.getComputedStyle(caja);
-          var interno = caja.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-          maxPx = Math.max(60, Math.min(140, Math.floor(interno) - 2));
+        var movil = window.matchMedia('(max-width: 820px)').matches;
+        if (movil) {
+          // celular: el recuadro blanco se ajusta a la barra (CSS: width:max-content),
+          // así nada se sale del fondo ni quedan espacios vacíos
+          maxPx = 110;
+        } else {
+          // PC: el largo máximo de la barra se ajusta al ancho real del recuadro
+          var caja = this._lab && this._lab.parentNode;
+          if (caja && caja.clientWidth) {
+            var cs = window.getComputedStyle(caja);
+            var interno = caja.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+            maxPx = Math.max(60, Math.min(140, Math.floor(interno) - 2));
+          }
         }
         var tam = map.getSize();
         if (!tam.x || !tam.y) { return; }
@@ -2982,11 +3027,12 @@ JS_CODIGO <- r"---(
     else if (d) { opc.filter = igual('IDDPTO', d); sel = L.geoJSON(DATA.dep, opc); }
     if (sel) { miniSel = sel.addTo(mini); }
 
-    // Cuadro de la vista actual: se mantiene mientras no haya un polígono
-    // elegido; no se muestra en la vista inicial de todo el Perú
+    // Cuadro amarillo de la vista actual: solo aparece cuando el mapa ya está
+    // acercado (al menos 1 nivel de zoom sobre la vista de todo el Perú).
+    // En la vista alejada no se muestra, aunque se mueva el mapa arriba/abajo.
     var mostrar = false, vb = mapa.getBounds();
     if (!sel && tam.x && tam.y) {
-      mostrar = !vb.contains(PERU);
+      mostrar = mapa.getZoom() >= mapa.getMinZoom() + 1;
     }
     if (mostrar) {
       miniRect.setBounds(vb);
@@ -3017,6 +3063,7 @@ JS_CODIGO <- r"---(
       miniRect = L.rectangle(mapa.getBounds(), {
         color: '#fdc50f', weight: 2, fill: false, interactive: false });
       mapa.on('moveend', actualizarMini);
+      mapa.on('zoomend', actualizarMini);
       setTimeout(function () {
         mini.invalidateSize();
         mini.fitBounds(PERU, { animate: false, padding: [4, 4] });
@@ -3131,11 +3178,17 @@ JS_CODIGO <- r"---(
         prov: JSON.parse(m.prov),
         dist: JSON.parse(m.dist),
         per: m.per ? JSON.parse(m.per) : null,
-        pais: m.pais ? JSON.parse(m.pais) : null
+        pais: (DATA && DATA.pais) ? DATA.pais : null
       };
       diagEstado.limites = 'recibidos';
       diag();
       intentar();
+    });
+
+    Shiny.addCustomMessageHandler('cargar_pais', function (m) {
+      if (!DATA) { DATA = {}; }
+      DATA.pais = m.pais ? JSON.parse(m.pais) : null;
+      if (DATA.dep) { render(); }
     });
 
     Shiny.addCustomMessageHandler('estado_mapa', function (m) {
@@ -3570,8 +3623,13 @@ server <- function(input, output, session) {
     req(lim)
     session$sendCustomMessage("cargar_limites", list(
       dep = lim$dep$geojson, prov = lim$prov$geojson,
-      dist = lim$dist$geojson, per = lim$per$geojson, pais = lim$pais$geojson))
+      dist = lim$dist$geojson, per = lim$per$geojson))
     LIM(lim)
+    # El contorno del Perú se calcula después de que el mapa ya muestra los límites
+    session$onFlushed(function() {
+      p <- cargar_pais()
+      if (!is.null(p)) session$sendCustomMessage("cargar_pais", list(pais = p))
+    }, once = TRUE)
   })
   
   # ---- Navegación: mapa y listas ---------------------------------------------
