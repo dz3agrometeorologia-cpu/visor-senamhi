@@ -1302,6 +1302,26 @@ html, body {margin:0; padding:0; height:100%; overflow:hidden;
   .leaflet-top.leaflet-left, .leaflet-bottom.leaflet-left {margin-left:217px;}
   .panel-result {left:225px;}
 }
+.ventana-valores, .ventana-coord, .panel-result, .asa,
+.ventana-valores .vc-card, .ventana-valores .vc-caja, .ventana-valores .vc-head,
+.ventana-valores .vv-cuerpo {
+  touch-action: none;
+}
+.ventana-valores .vc-card, .ventana-valores .vc-head {
+  user-select: text; -webkit-user-select: text; cursor: text;
+}
+/* ---- Todas las ventanas: asa visible y cursor de redimensionar en el borde superior ---- */
+.ventana-valores .asa, .ventana-coord .asa, .panel-result .asa {
+  box-sizing: content-box; width: 44px; height: 5px; padding: 8px 14px;
+  background-clip: content-box; top: -2px; cursor: ns-resize; z-index: 5;
+  transition: background-color .15s;
+}
+.ventana-valores:hover .asa, .ventana-coord:hover .asa, .panel-result:hover .asa {
+  background-color: #fff;
+}
+.ventana-valores .asa:hover, .ventana-coord .asa:hover, .panel-result .asa:hover {
+  background-color: #fdc50f;
+}
 )---"
 
 JS_CODIGO <- r"---(
@@ -1833,7 +1853,7 @@ JS_CODIGO <- r"---(
       if (e.offsetX > e.target.clientWidth && e.target.scrollHeight > e.target.clientHeight) {
         return;  // barra de desplazamiento
       }
-      if (noArrastre && $(e.target).closest(noArrastre).length) { return; }  // texto seleccionable
+      if (noArrastre && e.pointerType === 'mouse' && $(e.target).closest(noArrastre).length) { return; }  // texto seleccionable (solo mouse)
       var wrap = document.getElementById('mapa-wrap').getBoundingClientRect();
       var r = el.getBoundingClientRect();
       inicio = { x: e.clientX, y: e.clientY, l: r.left - wrap.left, t: r.top - wrap.top,
@@ -1864,8 +1884,64 @@ JS_CODIGO <- r"---(
     el.addEventListener('pointerup', soltar);
     el.addEventListener('pointercancel', soltar);
   }
-  arrastrable('#ventana-valores', function () { ventanaMovida = true; });
+  arrastrable('#ventana-valores', function () { ventanaMovida = true; }, '.vc-card, .vc-head');
   arrastrable('#panel-result', null, '.vc-card, .rs-total, .rs-parcela');
+    // Achicar/agrandar las ventanas (valores, coordenadas y resultados):
+  // arrastrar su franja superior hacia abajo las achica, hacia arriba las agranda
+  (function () {
+    var ini = null;
+    var VENTANAS = [
+      { id: 'ventana-valores', cuerpo: '#vv-cuerpo' },
+      { id: 'ventana-coord',   cuerpo: '#ventana-coord .pc-form' },
+      { id: 'panel-result',    cuerpo: '#pr-cuerpo' }
+    ];
+
+    function buscar(e) {
+      if (e.target && e.target.closest && e.target.closest('button, input, select, textarea, a, label')) { return null; }
+      var i, v, r;
+      for (i = 0; i < VENTANAS.length; i++) {
+        v = document.getElementById(VENTANAS[i].id);
+        if (!v || getComputedStyle(v).display === 'none') { continue; }
+        r = v.getBoundingClientRect();
+        if (e.clientX < r.left || e.clientX > r.right) { continue; }
+        if (e.clientY < r.top - 6 || e.clientY > r.top + 24) { continue; }
+        return { v: v, def: VENTANAS[i] };
+      }
+      return null;
+    }
+
+    document.addEventListener('pointerdown', function (e) {
+      if (e.button !== undefined && e.button !== 0) { return; }
+      var f = buscar(e);
+      if (!f) { return; }
+      var cuerpo = document.querySelector(f.def.cuerpo);
+      if (!cuerpo) { return; }
+      e.stopPropagation();
+      e.preventDefault();
+      var wrap = document.getElementById('mapa-wrap').getBoundingClientRect();
+      var r = f.v.getBoundingClientRect();
+      cuerpo.style.overflowY = 'auto';
+      ini = { y: e.clientY, top: r.top - wrap.top, h: cuerpo.getBoundingClientRect().height,
+              v: f.v, cuerpo: cuerpo, id: f.def.id,
+              fijoAbajo: f.def.id === 'panel-result' && f.v.style.top === '' &&
+                         window.matchMedia('(max-width: 820px)').matches };
+    }, true);
+
+    document.addEventListener('pointermove', function (e) {
+      if (!ini) { return; }
+      var natural = ini.cuerpo.scrollHeight;
+      var nuevo = Math.max(60, Math.min(natural, ini.h - (e.clientY - ini.y)));
+      ini.cuerpo.style.maxHeight = nuevo + 'px';
+      if (!ini.fijoAbajo) { ini.v.style.top = (ini.top + (ini.h - nuevo)) + 'px'; }
+      if (ini.id === 'ventana-valores') { ventanaMovida = true; }
+      if (ini.id === 'ventana-coord') { coordMovida = true; }
+      e.preventDefault();
+    }, true);
+
+    function fin() { ini = null; }
+    document.addEventListener('pointerup', fin, true);
+    document.addEventListener('pointercancel', fin, true);
+  })();
 
   // Al copiar valores del cuadro de resultados, se copian como tabla ordenada
   // (texto separado por tabulaciones y tabla HTML) para pegar en Word o Excel
@@ -3292,9 +3368,10 @@ JS_CODIGO <- r"---(
     ajustarVistaInicial(false);
     setTimeout(function () { if (!estado.dep) { ajustarVistaInicial(false); } }, 500);
     setTimeout(function () { ajustarMinZoom(); }, 1500);
-        mapa.on('click', alClicMapa);
-    // Al girar la rueda sobre el área pintada, el relleno desaparece
-     mapa.getContainer().addEventListener('wheel', quitarRelleno, { passive: true });
+    mapa.on('click', alClicMapa);
+    mapa.on('click', alClicDibujo);
+    // Al girar la rueda o hacer zoom, el relleno azul desaparece
+    mapa.getContainer().addEventListener('wheel', quitarRelleno, { passive: true });
     mapa.on('zoomstart', quitarRelleno);
     mapa.on('mousemove', alMoverDibujo);
     mapa.on('dblclick', function () { if (dibujando) { window.terminarDibujo(); } });
