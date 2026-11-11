@@ -2270,7 +2270,13 @@
       "checksum": "8d915c69dddd983a171cafa01de2532d"
     },
     "app.R": {
-      "checksum": "92fa47c20fac1befc67afb9befe8b66b"
+      "checksum": "82b5aa48960acdbb6243075034fed39c"
+    },
+    "cache_visor/limites_v2.rds": {
+      "checksum": "b3a8567c51f0630d6479240e804c5d29"
+    },
+    "cache_visor/pais_v2.rds": {
+      "checksum": "8d915c69dddd983a171cafa01de2532d"
     },
     "www/logo_claro.png": {
       "checksum": "2a92a9c0c43dcda21d1afabfd71b400c"
