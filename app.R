@@ -3787,8 +3787,8 @@ desactivar <- function(x) {
 # -----------------------------------------------------------------------------
 # Pantalla de carga (se adapta al modo claro/oscuro del usuario)
 # -----------------------------------------------------------------------------
-LOGO_OSC <- base64enc::dataURI(file = "www/logo_oscuro.png", mime = "image/png")
-LOGO_CLA <- base64enc::dataURI(file = "www/logo_claro.png",  mime = "image/png")
+LOGO_OSC <- "logo_oscuro.png"   # se sirven desde www/ (el navegador los descarga aparte y los guarda en caché)
+LOGO_CLA <- "logo_claro.png"
 
 SPLASH_HTML <- paste0(
   '<div id="splash"><div class="sp-glow"></div>',
@@ -3800,7 +3800,6 @@ SPLASH_HTML <- paste0(
   '</div>')
 
 SPLASH_CSS <- r"---(
-@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@700;900&display=swap');
 #splash {position:fixed; inset:0; z-index:99999; display:flex; flex-direction:column;
   align-items:center; justify-content:center; background:#0f1722; color:#fff;
   font-family:"Roboto", "Helvetica Neue", Arial, sans-serif;
