@@ -366,6 +366,7 @@ def limites_geojson(ruta, campos, error_m):
 # -----------------------------------------------------------------------------
 gee_listo <- FALSE
 CACHE <- new.env()
+CACHE_COMP <- new.env()   # composiciones y URLs ya calculadas (compartido entre sesiones)
 
 inicializar_gee <- function() {
   message("Earth Engine: importando librería")
@@ -405,20 +406,31 @@ asegurar_gee <- function() {
 # Caché en disco: la primera vez se calculan los límites en Earth Engine y se guardan;
 # las siguientes veces (y otras sesiones) se leen del archivo y cargan casi al instante.
 # Si cambias los assets de límites, borra la carpeta ".cache_visor".
-ruta_cache <- function(nombre) {
-  d <- tryCatch({
-    x <- file.path(getwd(), ".cache_visor")
-    dir.create(x, showWarnings = FALSE)
-    if (dir.exists(x) && file.access(x, 2) == 0) x else tempdir()
-  }, error = function(e) tempdir())
-  file.path(d, nombre)
-}
+# La carpeta "cache_visor" (SIN punto) viaja con el despliegue: se genera una vez en tu PC
+# y se sube junto con la app, así el primer visitante NO espera a Earth Engine.
+# Si cambias los assets de límites, borra la carpeta "cache_visor" y vuelve a generarla.
+DIR_CACHE <- file.path(getwd(), "cache_visor")
+
 leer_cache <- function(nombre) {
-  f <- ruta_cache(nombre)
-  if (file.exists(f)) tryCatch(readRDS(f), error = function(e) NULL) else NULL
+  for (d in c(DIR_CACHE, tempdir())) {
+    f <- file.path(d, nombre)
+    if (file.exists(f)) {
+      r <- tryCatch(readRDS(f), error = function(e) NULL)
+      if (!is.null(r)) return(r)
+    }
+  }
+  NULL
 }
 guardar_cache <- function(obj, nombre) {
-  try(saveRDS(obj, ruta_cache(nombre)), silent = TRUE)
+  for (d in c(DIR_CACHE, tempdir())) {
+    ok <- tryCatch({
+      dir.create(d, showWarnings = FALSE, recursive = TRUE)
+      saveRDS(obj, file.path(d, nombre))
+      TRUE
+    }, error = function(e) FALSE, warning = function(w) FALSE)
+    if (ok) return(invisible(TRUE))
+  }
+  invisible(FALSE)
 }
 
 # Contorno nacional: se calcula aparte (después de mostrar los límites) y se guarda en caché
@@ -1705,8 +1717,7 @@ JS_CODIGO <- r"---(
         });
         lyr.on('click', function () {
           if (modoConsulta || dibujando) { return; }
-          Shiny.setInputValue('nav_click',
-            { nivel: nivel, id: id, n: Math.random() }, { priority: 'event' });
+          setTimeout(function () { navegarJS(nivel, id); }, 0);
         });
       }
     });
@@ -1738,8 +1749,7 @@ JS_CODIGO <- r"---(
         lyr.on('mouseout', function () { capa.resetStyle(lyr); });
         lyr.on('click', function () {
           if (modoConsulta || dibujando) { return; }
-          Shiny.setInputValue('nav_click',
-            { nivel: nivel, id: id, n: Math.random() }, { priority: 'event' });
+          setTimeout(function () { navegarJS(nivel, id); }, 0);
         });
       }
     });
@@ -1799,7 +1809,74 @@ JS_CODIGO <- r"---(
     }
   }
 
-  function intentar() { render(); ajustar(); construirMini(); actualizarMini(); }
+  function opcionesSel(id, vacio, items, valor) {
+    var s = document.getElementById(id), h = '<option value="">' + vacio + '</option>';
+    if (!s) { return; }
+    items.forEach(function (it) {
+      h += '<option value="' + escAttr(it[0]) + '">' + escHtml(it[1]) + '</option>';
+    });
+    s.innerHTML = h;
+    s.value = valor || '';
+  }
+  function listaDe(gj, campoId, campoNom, filtro) {
+    var vistos = {}, out = [];
+    gj.features.forEach(function (f) {
+      var p = f.properties, id = String(p[campoId]);
+      if ((filtro && !filtro(p)) || vistos[id]) { return; }
+      vistos[id] = 1;
+      out.push([id, String(p[campoNom])]);
+    });
+    out.sort(function (a, b) { return a[1].localeCompare(b[1], 'es'); });
+    return out;
+  }
+  function sincronizarListas() {
+    if (!DATA || !DATA.dep || !DATA.prov || !DATA.dist) { return; }
+    var d = estado.dep, p = estado.prov, s = estado.dist;
+    opcionesSel('sel_dep', 'Todos', listaDe(DATA.dep, 'IDDPTO', 'DEPARTAMEN'), d);
+    opcionesSel('sel_prov', 'Todas', d ? listaDe(DATA.prov, 'IDPROV', 'PROVINCIA',
+      function (q) { return String(q.IDDPTO) === String(d); }) : [], p);
+    opcionesSel('sel_dist', 'Todos', p ? listaDe(DATA.dist, 'IDDIST', 'DISTRITO',
+      function (q) { return String(q.IDPROV) === String(p); }) : [], s);
+    $('#sel_prov').prop('disabled', !d);
+    $('#sel_dist').prop('disabled', !p);
+  }
+
+  function navegarJS(nivel, id) {
+    var f;
+    id = String(id);
+    if (!DATA) { return; }
+    if (nivel === 'dep') {
+      estado = { dep: id, prov: '', dist: '' };
+    } else if (nivel === 'prov') {
+      f = DATA.prov.features.filter(function (x) { return String(x.properties.IDPROV) === id; })[0];
+      if (!f) { return; }
+      estado = { dep: String(f.properties.IDDPTO), prov: id, dist: '' };
+    } else {
+      f = DATA.dist.features.filter(function (x) { return String(x.properties.IDDIST) === id; })[0];
+      if (!f) { return; }
+      estado = { dep: String(f.properties.IDDPTO), prov: String(f.properties.IDPROV), dist: id };
+    }
+    intentar();
+  }
+
+  $(document).on('change', '#sel_dep', function () {
+    estado = { dep: this.value, prov: '', dist: '' }; intentar();
+  });
+  $(document).on('change', '#sel_prov', function () {
+    if (this.value) { navegarJS('prov', this.value); }
+    else { estado.prov = ''; estado.dist = ''; intentar(); }
+  });
+  $(document).on('change', '#sel_dist', function () {
+    if (this.value) { navegarJS('dist', this.value); }
+    else { estado.dist = ''; intentar(); }
+  });
+  $(document).on('click', '#reset', function () {
+    estado = { dep: '', prov: '', dist: '' };
+    if (marcador && mapa) { mapa.removeLayer(marcador); marcador = null; }
+    intentar();
+  });
+
+  function intentar() { sincronizarListas(); render(); ajustar(); construirMini(); actualizarMini(); }
 
   // ---- Ventana flotante de valores (se puede mover con el mouse o el dedo) ----
   var ventanaMovida = false, ventanaLatLng = null;
@@ -3970,14 +4047,7 @@ ui <- function(request) {
 server <- function(input, output, session) {
   
   gee_ok <- reactiveVal(FALSE)
-  LIM    <- reactiveVal(NULL)
-  est    <- reactiveValues(dep = "", prov = "", dist = "")
-  
-  fijar <- function(dep = "", prov = "", dist = "") {
-    est$dep <- dep
-    est$prov <- prov
-    est$dist <- dist
-  }
+  lim_ok <- reactiveVal(FALSE)
   
   seguro <- function(expr, avisar = TRUE) {
     tryCatch(expr,
@@ -3996,8 +4066,29 @@ server <- function(input, output, session) {
     session$sendCustomMessage("splash_paso", list(pct = pct, texto = texto))
   }
   
+  enviar_limites <- function(lim) {
+    session$sendCustomMessage("cargar_limites", list(
+      dep = lim$dep$geojson, prov = lim$prov$geojson,
+      dist = lim$dist$geojson, per = lim$per$geojson))
+    p <- CACHE$pais %||% leer_cache("pais_v2.rds")
+    if (!is.null(p)) {
+      CACHE$pais <- p
+      session$sendCustomMessage("cargar_pais", list(pais = p))
+    }
+  }
+  
   # ---- Conexión con Earth Engine (después de mostrar la página) -------------
   session$onFlushed(function() {
+    # Si hay caché, el mapa con los límites se dibuja YA, sin esperar a Earth Engine
+    lim0 <- CACHE$lim %||% leer_cache("limites_v2.rds")
+    if (!is.null(lim0)) {
+      CACHE$lim <- lim0
+      enviar_limites(lim0)
+      lim_ok(TRUE)
+      sp(60, "LÍMITES LISTOS")
+      # El mapa ya es usable: se quita la pantalla de carga; la capa llega después
+      session$sendCustomMessage("splash_fin", TRUE)
+    }
     sp(20, "CONECTANDO CON EARTH ENGINE")
     ok <- tryCatch({ asegurar_gee(); TRUE }, error = function(e) {
       message("Error al conectar con Earth Engine: ", conditionMessage(e))
@@ -4009,9 +4100,10 @@ server <- function(input, output, session) {
     if (ok) gee_ok(TRUE) else session$sendCustomMessage("splash_fin", TRUE)
   }, once = TRUE)
   
-  # ---- Límites administrativos ----------------------------------------------
+  # Solo si NO había caché (primera vez, en tu PC): se calculan los límites en Earth Engine
   observeEvent(gee_ok(), {
     req(gee_ok())
+    if (lim_ok()) { sp(80, "CALCULANDO NDVI Y NDMI"); return() }
     sp(50, "CARGANDO LÍMITES ADMINISTRATIVOS")
     lim <- tryCatch(cargar_limites(), error = function(e) {
       message("Error al cargar límites: ", conditionMessage(e))
@@ -4022,11 +4114,9 @@ server <- function(input, output, session) {
     })
     if (is.null(lim)) session$sendCustomMessage("splash_fin", TRUE)
     req(lim)
-    session$sendCustomMessage("cargar_limites", list(
-      dep = lim$dep$geojson, prov = lim$prov$geojson,
-      dist = lim$dist$geojson, per = lim$per$geojson))
+    enviar_limites(lim)
+    lim_ok(TRUE)
     sp(80, "CALCULANDO NDVI Y NDMI")
-    LIM(lim)
     # El contorno del Perú se calcula después de que el mapa ya muestra los límites
     session$onFlushed(function() {
       p <- cargar_pais()
@@ -4034,87 +4124,7 @@ server <- function(input, output, session) {
     }, once = TRUE)
   })
   
-  # ---- Navegación: mapa y listas ---------------------------------------------
-  observeEvent(input$nav_click, {
-    x <- input$nav_click
-    lim <- LIM()
-    req(lim)
-    if (x$nivel == "dep") {
-      fijar(x$id, "", "")
-    } else if (x$nivel == "prov") {
-      f <- lim$prov$tabla[lim$prov$tabla$IDPROV == x$id, , drop = FALSE]
-      fijar(f$IDDPTO[1], x$id, "")
-    } else if (x$nivel == "dist") {
-      f <- lim$dist$tabla[lim$dist$tabla$IDDIST == x$id, , drop = FALSE]
-      fijar(f$IDDPTO[1], f$IDPROV[1], x$id)
-    }
-  })
-  
-  observeEvent(input$sel_dep, {
-    v <- input$sel_dep %||% ""
-    if (!identical(v, est$dep)) fijar(v, "", "")
-  }, ignoreInit = TRUE)
-  
-  observeEvent(input$sel_prov, {
-    v <- input$sel_prov %||% ""
-    lim <- LIM()
-    if (!is.null(lim) && !identical(v, est$prov)) {
-      if (nzchar(v)) {
-        f <- lim$prov$tabla[lim$prov$tabla$IDPROV == v, , drop = FALSE]
-        fijar(f$IDDPTO[1], v, "")
-      } else {
-        fijar(est$dep, "", "")
-      }
-    }
-  }, ignoreInit = TRUE)
-  
-  observeEvent(input$sel_dist, {
-    v <- input$sel_dist %||% ""
-    lim <- LIM()
-    if (!is.null(lim) && !identical(v, est$dist)) {
-      if (nzchar(v)) {
-        f <- lim$dist$tabla[lim$dist$tabla$IDDIST == v, , drop = FALSE]
-        fijar(f$IDDPTO[1], f$IDPROV[1], v)
-      } else {
-        fijar(est$dep, est$prov, "")
-      }
-    }
-  }, ignoreInit = TRUE)
-  
-  observeEvent(input$reset, {
-    fijar("", "", "")
-    session$sendCustomMessage("vista_inicial", TRUE)
-  })
-  
-  # Estado -> listas desplegables y mapa
-  observe({
-    lim <- LIM()
-    req(lim)
-    d <- est$dep
-    p <- est$prov
-    s <- est$dist
-    
-    td <- lim$dep$tabla
-    td <- td[order(td$DEPARTAMEN), , drop = FALSE]
-    updateSelectInput(session, "sel_dep",
-                      choices = c("Todos" = "", setNames(td$IDDPTO, td$DEPARTAMEN)), selected = d)
-    
-    tp <- lim$prov$tabla
-    tp <- tp[tp$IDDPTO == d, , drop = FALSE]
-    tp <- tp[order(tp$PROVINCIA), , drop = FALSE]
-    updateSelectInput(session, "sel_prov",
-                      choices = c("Todas" = "", setNames(tp$IDPROV, tp$PROVINCIA)), selected = p)
-    
-    tt <- lim$dist$tabla
-    tt <- tt[tt$IDPROV == p, , drop = FALSE]
-    tt <- tt[order(tt$DISTRITO), , drop = FALSE]
-    updateSelectInput(session, "sel_dist",
-                      choices = c("Todos" = "", setNames(tt$IDDIST, tt$DISTRITO)), selected = s)
-    
-    session$sendCustomMessage("habilitar", list(id = "sel_prov", activo = nzchar(d)))
-    session$sendCustomMessage("habilitar", list(id = "sel_dist", activo = nzchar(p)))
-    session$sendCustomMessage("estado_mapa", list(dep = d, prov = p, dist = s))
-  })
+  # La navegación departamento > provincia > distrito se resuelve en el navegador (JavaScript)
   
   # ---- Mapa base: solo Google (se agrega desde JavaScript) -------------------
   output$mapa <- renderLeaflet({
@@ -4131,22 +4141,33 @@ server <- function(input, output, session) {
     req(gee_ok())
     f <- fechas_deb()
     req(length(f) == 2, !anyNA(f))
+    clave <- paste(as.character(f), collapse = "_")
+    if (!is.null(CACHE_COMP[[clave]])) return(CACHE_COMP[[clave]])
     if (as.numeric(f[2] - f[1]) > 92) {
       showNotification("Los periodos largos (más de 3 meses) tardan más en calcularse.",
                        type = "warning", duration = 6)
     }
     # La fecha final es inclusiva: se suma un día porque filterDate excluye el final
-    reticulate::py$compuesto(as.character(f[1]), as.character(f[2] + 1))
+    r <- reticulate::py$compuesto(as.character(f[1]), as.character(f[2] + 1))
+    ks <- ls(CACHE_COMP)
+    if (length(ks) >= 8) rm(list = ks[1], envir = CACHE_COMP)
+    CACHE_COMP[[clave]] <- r
+    r
   })
   
   url_capa <- reactive({
     r <- comp()
     capa <- input$capa
     req(capa, r$n > 0)
+    f <- fechas_deb()
+    clave <- paste0("url_", capa, "_", paste(as.character(f), collapse = "_"))
+    if (!is.null(CACHE_COMP[[clave]])) return(CACHE_COMP[[clave]])
     v <- VIS[[capa]]
-    r$img$select(capa)$getMapId(
+    u <- r$img$select(capa)$getMapId(
       list(min = v$min, max = v$max, palette = as.list(v$palette))
     )$tile_fetcher$url_format
+    CACHE_COMP[[clave]] <- u
+    u
   })
   
   observe({
