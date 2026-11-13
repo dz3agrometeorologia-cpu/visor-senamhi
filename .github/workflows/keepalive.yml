@@ -2,16 +2,47 @@ name: Mantener visor despierto
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "0 */5 * * *"   # relevo cada 5 horas
   workflow_dispatch:
 
+concurrency:
+  group: visor-keepalive
+  cancel-in-progress: true
+
 jobs:
-  ping:
+  navegador:
     runs-on: ubuntu-latest
+    timeout-minutes: 340
     steps:
-      - name: Abrir la URL del visor
+      - name: Instalar Playwright
         run: |
-          URL="https://dz3-visor-senamhi.share.connect.posit.cloud/"
-          code=$(curl -s -o /dev/null -L --max-time 90 -w "%{http_code}" "$URL")
-          echo "Respuesta HTTP: $code"
-          test "$code" -lt 500
+          pip install playwright
+          playwright install --with-deps chromium
+
+      - name: Mantener sesión abierta del visor
+        run: |
+          cat > keepalive.py << 'EOF'
+          import time
+          from playwright.sync_api import sync_playwright
+
+          URL = "https://dz3-visor-senamhi.share.connect.posit.cloud/"
+          DURACION = 330 * 60  # segundos
+          inicio = time.time()
+
+          with sync_playwright() as p:
+              browser = p.chromium.launch()
+              page = browser.new_page()
+              while time.time() - inicio < DURACION:
+                  try:
+                      page.goto(URL, timeout=120000, wait_until="load")
+                      print(time.strftime("%H:%M:%S"), "visor abierto:", page.title(), flush=True)
+                      # Sesión abierta 10 min; luego se recarga por si se cayó
+                      for _ in range(10):
+                          page.wait_for_timeout(60000)
+                          page.mouse.move(100, 100)
+                  except Exception as e:
+                      print("Error:", e, flush=True)
+                      time.sleep(30)
+              browser.close()
+          EOF
+          python keepalive.py
