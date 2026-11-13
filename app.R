@@ -3924,6 +3924,9 @@ ui <- function(request) {
     title = "Visor de índices de vegetación · SENAMHI",
     tags$head(
       tags$meta(name = "viewport", content = "width=device-width, initial-scale=1"),
+      # Icono de la pestaña del navegador: archivo www/favicon.png (cuadrado). El ?v=1 obliga a refrescarlo.
+      tags$link(rel = "icon", type = "image/png", href = "favicon.png?v=1"),
+      tags$link(rel = "apple-touch-icon", href = "favicon.png?v=1"),
       tags$style(HTML(CSS_CODIGO)),
       tags$script(HTML(paste0("window.GMAPS_KEY = ",
                               jsonlite::toJSON(Sys.getenv("GOOGLE_MAPS_API_KEY"), auto_unbox = TRUE),
