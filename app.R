@@ -2943,9 +2943,11 @@ JS_CODIGO <- r"---(
       });
       tol *= 2;
     }
+    var cifras = Math.max(2, String(salida.length).length);
     salida.forEach(function (pc, i) {
       pc.auto = !pc.nombre;
-      if (!pc.nombre) { pc.nombre = 'Parcela ' + (i + 1); }
+      pc.num = ('000' + (i + 1)).slice(-cifras);          // 01, 02, 03...
+      if (!pc.nombre) { pc.nombre = 'Polígono ' + pc.num; }
     });
     return salida;
   }
@@ -3059,14 +3061,14 @@ JS_CODIGO <- r"---(
     if (d.error) {
       if (d.error === 'sin_imagenes') { return aviso('No hay imágenes disponibles en el periodo elegido. Amplía el rango de fechas.'); }
       if (d.error === 'grande') { return aviso('El terreno es demasiado grande (máximo 50 000 ha). Dibuja un área menor.'); }
-      if (d.error === 'demasiadas') { return aviso('El archivo tiene demasiadas parcelas (máximo 200).'); }
+      if (d.error === 'demasiadas') { return aviso('El archivo tiene demasiados polígonos (máximo 200).'); }
       return aviso('No se pudo calcular el área de este contorno. Dibújalo de nuevo.');
     }
     var total = d.total, parcelas = d.parcelas || [], multi = parcelas.length > 1;
     var enHa = total > 5000;
     var sub = [];
     if (enHa) { sub.push('(' + fmtM2(total) + ' m²)'); }
-    if (multi) { sub.push(parcelas.length + ' parcelas'); }
+    if (multi) { sub.push(parcelas.length + ' polígonos'); }
     var html = '<div class="vc">' +
       '<div class="rs-total" data-nombre="Área total" data-modo="' + (enHa ? 'ha' : 'm2') +
       '" data-ha="' + fmtHa(total) + '" data-m2="' + fmtM2p(total) + '">' +
@@ -3074,11 +3076,11 @@ JS_CODIGO <- r"---(
       '<div class="rs-n">' + (enHa ? fmtHa(total) + ' ha' : fmtM2(total) + ' m²') + '</div>' +
       (sub.length ? '<div class="rs-s">' + sub.join(' · ') + '</div>' : '') + '</div>' +
       tablaRangos('NDVI', 'Vigor vegetativo', 't-verde', d.ndvi, total, CL.NDVI, enHa,
-        (multi ? 'Total de las parcelas - ' : '') + 'NDVI - Vigor vegetativo') +
+        (multi ? 'Total de los polígonos - ' : '') + 'NDVI - Vigor vegetativo') +
       tablaRangos('NDMI', 'Humedad del suelo', 't-azul', d.ndmi, total, CL.NDMI, enHa,
-        (multi ? 'Total de las parcelas - ' : '') + 'NDMI - Humedad del suelo');
+        (multi ? 'Total de los polígonos - ' : '') + 'NDMI - Humedad del suelo');
     if (multi) {
-      html += '<div class="rs-sec-tit">Resultados por parcela</div>';
+      html += '<div class="rs-sec-tit">Resultados por polígono</div>';
       parcelas.forEach(function (p) { html += detalleParcela(p, total, CL); });
     }
     return html + '</div>';
@@ -3120,7 +3122,7 @@ JS_CODIGO <- r"---(
       var parcelas = limpiarParcelas(res.parcelas);
       if (!parcelas.length) { throw new Error('El archivo no contiene polígonos.'); }
       if (parcelas.length > 200) {
-        throw new Error('El archivo tiene ' + parcelas.length + ' parcelas; el máximo es 200. Divídelo en archivos más pequeños.');
+        throw new Error('El archivo tiene ' + parcelas.length + ' polígonos; el máximo es 200. Divídelo en archivos más pequeños.');
       }
       var b = L.latLngBounds([]);
       parcelas.forEach(function (pc) {
@@ -3152,7 +3154,7 @@ JS_CODIGO <- r"---(
       });
       var capa = L.polygon(anidado, ESTILO_POLI);
       if (n > 1 && n <= 100) {
-        capa.bindTooltip(pc.auto ? String(i + 1) : pc.nombre.slice(0, 14),
+        capa.bindTooltip(pc.auto ? pc.num : pc.nombre.slice(0, 14),
           { permanent: true, direction: 'center', className: 'etq-parcela' });
       }
       grupoP.addLayer(capa);
@@ -3162,7 +3164,7 @@ JS_CODIGO <- r"---(
     }) }));
     mapa.fitBounds(grupoP.getBounds(), { paddingTopLeft: [350, 40],
       paddingBottomRight: [40, 40], maxZoom: 17 });
-    avisoMapa('Área importada: ' + nombre + ' (' + n + (n === 1 ? ' parcela)' : ' parcelas)') +
+    avisoMapa('Área importada: ' + nombre + ' (' + n + (n === 1 ? ' polígono)' : ' polígonos)') +
       (nota || ''), 7000, false);
   }
 

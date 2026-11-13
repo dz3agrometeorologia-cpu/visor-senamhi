@@ -2263,14 +2263,8 @@
     }
   },
   "files": {
-    ".cache_visor/limites_v2.rds": {
-      "checksum": "b3a8567c51f0630d6479240e804c5d29"
-    },
-    ".cache_visor/pais_v2.rds": {
-      "checksum": "8d915c69dddd983a171cafa01de2532d"
-    },
     "app.R": {
-      "checksum": "51e528a1c0e8fc5e972557a4fc859c36"
+      "checksum": "5925ada31edc903e837291b5637f485c"
     },
     "cache_visor/limites_v2.rds": {
       "checksum": "b3a8567c51f0630d6479240e804c5d29"
