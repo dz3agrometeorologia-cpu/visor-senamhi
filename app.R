@@ -170,13 +170,15 @@ def compuesto(inicio, fin):
           .filterBounds(aoi)
           .filterDate(inicio, fin)
           .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 90))
+          .select(['B4', 'B8', 'B11', 'SCL', 'QA60'])   # solo las bandas que se usan
           .map(_mask_s2))
     l9 = (ee.ImageCollection('LANDSAT/LC09/C02/T1_L2')
           .filterBounds(aoi)
           .filterDate(inicio, fin)
+          .select(['SR_B4', 'SR_B5', 'SR_B6', 'QA_PIXEL'])   # solo las bandas que se usan
           .map(_mask_l9)
-          .select(['SR_B5', 'SR_B6', 'SR_B7', 'SR_B4'],
-                  ['B8', 'B11', 'B12', 'B4']))
+          .select(['SR_B5', 'SR_B6', 'SR_B4'],
+                  ['B8', 'B11', 'B4']))
     combinada = s2.merge(l9)
     n = combinada.size().getInfo()
     con_indices = combinada.map(_agregar_indices)
@@ -1350,7 +1352,7 @@ html, body {margin:0; padding:0; height:100%; overflow:hidden;
 JS_CODIGO <- r"---(
 (function () {
   function arrancar() {
-  var mapa = null, DATA = null, grupo = null, capaGee = null, marcador = null;
+  var mapa = null, DATA = null, grupo = null, capaGee = null, marcador = null, limitesAOI = null;
   var ubic = null, PERU = null;
   var estado = { dep: '', prov: '', dist: '' };
   var modoConsulta = false, idClic = 0, dibujando = false;
@@ -3574,9 +3576,19 @@ JS_CODIGO <- r"---(
       cuandoListo(function () {
         if (capaGee) { mapa.removeLayer(capaGee); capaGee = null; }
         if (!m.url) { diagEstado.capa = 'sin imágenes'; diag(); ocultarCarga(); return; }
-        capaGee = L.tileLayer(m.url, {
-          opacity: m.opacidad, zIndex: 10, maxZoom: 22, attribution: ATRIB
-        });
+        // Ahorro de cuota de Earth Engine: cada mosaico pedido cuenta como cómputo.
+        //  - bounds: no se piden mosaicos fuera de la zona de trabajo (DZ3)
+        //  - updateWhenIdle / updateWhenZooming / keepBuffer: no se piden mosaicos mientras se arrastra
+        //    o se anima el zoom, y se guarda menos margen fuera de pantalla
+        var opcCapa = {
+          opacity: m.opacidad, zIndex: 10, maxZoom: 22,
+          updateWhenIdle: true, updateWhenZooming: false, keepBuffer: 1, attribution: ATRIB
+        };
+        try {
+          if (!limitesAOI && DATA && DATA.dep) { limitesAOI = L.geoJSON(DATA.dep).getBounds().pad(0.05); }
+          if (limitesAOI && limitesAOI.isValid()) { opcCapa.bounds = limitesAOI; }
+        } catch (e) { /* si falla, la capa funciona igual, solo sin límite de zona */ }
+        capaGee = L.tileLayer(m.url, opcCapa);
         capaGee.on('loading', mostrarCarga);
         capaGee.on('load', ocultarCarga);
         capaGee.addTo(mapa);
