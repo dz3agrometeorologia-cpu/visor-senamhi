@@ -3921,7 +3921,7 @@ SPLASH_JS <- r"---(
 ui <- function(request) {
   hoy <- hoy_pe()
   fluidPage(
-    title = "Visor de índices de vegetación · SENAMHI",
+    title = "SENAMHI | Visor de Índices Espectrales",
     tags$head(
       tags$meta(name = "viewport", content = "width=device-width, initial-scale=1"),
       # Icono de la pestaña del navegador: archivo www/favicon.png (cuadrado). El ?v=1 obliga a refrescarlo.
