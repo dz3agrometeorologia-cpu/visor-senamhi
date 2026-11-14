@@ -663,8 +663,8 @@ html, body {margin:0; padding:0; height:100%; overflow:hidden;
 .escala-barra i:nth-child(2) {flex:25; background:#fff;}
 .escala-barra i:nth-child(3) {flex:50;}
 
-.minimapa-wrap {position:absolute; right:0.625rem; bottom:1.875rem; z-index:1000; width:7.375rem;
-  height:9.375rem; background:#fff; border:2px solid #3d3530; border-radius:0.625rem;
+.minimapa-wrap {position:absolute; right:0.625rem; bottom:1.875rem; z-index:1000; width:8.25rem;
+  height:10.5rem; background:#fff; border:2px solid #3d3530; border-radius:0.625rem;
   box-shadow:0 1px 0.3125rem rgba(0,0,0,.35); overflow:hidden;}
 #minimapa {position:absolute; top:0; left:0; right:0; bottom:0; background:#eaf2f8;}
 #minimapa.leaflet-container {cursor:default !important;}
@@ -1349,6 +1349,14 @@ html, body {margin:0; padding:0; height:100%; overflow:hidden;
   background-color: #fdc50f;
 }
 
+/* Minimapa más grande en pantalla completa (PC) */
+@media (min-width: 821px) {
+  #mapa-wrap:fullscreen .minimapa-wrap {width:11rem; height:14rem;}
+  #mapa-wrap:-webkit-full-screen .minimapa-wrap {width:11rem; height:14rem;}
+}
+/* Celular: "pantalla completa" propia (sin el aviso del navegador): el mapa cubre toda la ventana */
+body.pseudo-completa #mapa-wrap {position:fixed !important; top:0; left:0; right:0; bottom:0;
+  width:100% !important; height:100% !important; z-index:99999;}
 /* ---- Pantalla completa en PC: filtros, zoom (+/-) y escala van a la izquierda (solo PC; el celular no cambia) ---- */
 @media (min-width: 821px) {
   #mapa-wrap:fullscreen .leaflet-top.leaflet-left,
@@ -3613,26 +3621,40 @@ JS_CODIGO <- r"---(
     Shiny.setInputValue('modo_consulta', modoConsulta);
   };
 
-  window.pantallaCompleta = function () {
-    var el = document.getElementById('mapa-wrap');
-    if (!document.fullscreenElement) {
-      if (el.requestFullscreen) { el.requestFullscreen(); }
-    } else {
-      document.exitFullscreen();
-    }
-  };
   var ICO_EXPANDIR = '<svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M3 3h6v2H5v4H3V3zm12 0h6v6h-2V5h-4V3zM3 15h2v4h4v2H3v-6zm16 0h2v6h-6v-2h4v-4z"/></svg>';
   var ICO_CONTRAER = '<svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M8 3h2v6H4V7h4V3zm6 0h2v4h4v2h-6V3zM4 15h6v6H8v-4H4v-2zm10 0h6v2h-4v4h-2v-6z"/></svg>';
+  function estadoPantalla() {
+    var b = document.getElementById('btn_pantalla');
+    var activa = !!(document.fullscreenElement || document.webkitFullscreenElement ||
+                    document.body.classList.contains('pseudo-completa'));
+    if (b) {
+      b.innerHTML = activa ? ICO_CONTRAER : ICO_EXPANDIR;
+      b.title = activa ? 'Salir de pantalla completa' : 'Pantalla completa';
+    }
+    if (mapa) {
+      setTimeout(function () {
+        mapa.invalidateSize();
+        if (mini) { mini.invalidateSize(); mini.fitBounds(PERU, { animate: false, padding: [4, 4] }); actualizarMini(); }
+      }, 250);
+    }
+  }
+  window.pantallaCompleta = function () {
+    var el = document.getElementById('mapa-wrap');
+    var movil = window.matchMedia('(max-width: 820px)').matches;
+    var pedir = el.requestFullscreen || el.webkitRequestFullscreen;
+    var salir = document.exitFullscreen || document.webkitExitFullscreen;
+    var real = document.fullscreenElement || document.webkitFullscreenElement;
+    if (real) { if (salir) { salir.call(document); } return; }
+    if (movil || !pedir) {
+      // Celular: el mapa cubre toda la ventana; así el navegador no muestra su aviso inferior
+      document.body.classList.toggle('pseudo-completa');
+      estadoPantalla();
+    } else {
+      pedir.call(el);
+    }
+  };
   ['fullscreenchange', 'webkitfullscreenchange'].forEach(function (ev) {
-    document.addEventListener(ev, function () {
-      var b = document.getElementById('btn_pantalla');
-      var activa = !!(document.fullscreenElement || document.webkitFullscreenElement);
-      if (b) {
-        b.innerHTML = activa ? ICO_CONTRAER : ICO_EXPANDIR;
-        b.title = activa ? 'Salir de pantalla completa' : 'Pantalla completa';
-      }
-      if (mapa) { setTimeout(function () { mapa.invalidateSize(); }, 250); }
-    });
+    document.addEventListener(ev, estadoPantalla);
   });
 
   // ---- Mi ubicación: busca el departamento, provincia y distrito que contienen el punto ----
