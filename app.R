@@ -637,8 +637,9 @@ html, body {margin:0; padding:0; height:100%; overflow:hidden;
 
 .leaflet-bar {border:0 !important; border-radius:0.5rem !important;
   box-shadow:0 1px 0.3125rem rgba(0,0,0,.35) !important; overflow:hidden;}
-.leaflet-bar a, .leaflet-touch .leaflet-bar a {width:2.125rem !important; height:2.125rem !important;
-  line-height:2.125rem !important; color:var(--az) !important; background-color:#fff !important;
+.leaflet-bar a, .leaflet-touch .leaflet-bar a {width:1.875rem !important; height:1.875rem !important;
+  line-height:1.875rem !important; font-size:1rem !important; text-indent:0 !important;
+  color:var(--az) !important; background-color:#fff !important;
   font-weight:700; border-bottom-color:#e3e8ee !important;}
 .leaflet-bar a:hover, .leaflet-bar a:focus {background-color:var(--az) !important;
   color:#fff !important;}
@@ -1348,15 +1349,17 @@ html, body {margin:0; padding:0; height:100%; overflow:hidden;
   background-color: #fdc50f;
 }
 
-/* ---- Pantalla completa: no hay panel lateral, así que el zoom (+/-) y la escala van al borde izquierdo ---- */
-#mapa-wrap:fullscreen .leaflet-top.leaflet-left,
-#mapa-wrap:fullscreen .leaflet-bottom.leaflet-left {margin-left:0 !important;}
-#mapa-wrap:-webkit-full-screen .leaflet-top.leaflet-left,
-#mapa-wrap:-webkit-full-screen .leaflet-bottom.leaflet-left {margin-left:0 !important;}
-#mapa-wrap:fullscreen .filtros {left:0.625rem !important; max-width:calc(100% - 0.625rem - 10.9375rem) !important;}
-#mapa-wrap:-webkit-full-screen .filtros {left:0.625rem !important; max-width:calc(100% - 0.625rem - 10.9375rem) !important;}
-#mapa-wrap:fullscreen .panel-result {left:0.625rem !important;}
-#mapa-wrap:-webkit-full-screen .panel-result {left:0.625rem !important;}
+/* ---- Pantalla completa en PC: filtros, zoom (+/-) y escala van a la izquierda (solo PC; el celular no cambia) ---- */
+@media (min-width: 821px) {
+  #mapa-wrap:fullscreen .leaflet-top.leaflet-left,
+  #mapa-wrap:fullscreen .leaflet-bottom.leaflet-left {margin-left:0 !important;}
+  #mapa-wrap:-webkit-full-screen .leaflet-top.leaflet-left,
+  #mapa-wrap:-webkit-full-screen .leaflet-bottom.leaflet-left {margin-left:0 !important;}
+  #mapa-wrap:fullscreen .filtros {left:0.625rem !important; max-width:calc(100% - 0.625rem - 10.9375rem) !important;}
+  #mapa-wrap:-webkit-full-screen .filtros {left:0.625rem !important; max-width:calc(100% - 0.625rem - 10.9375rem) !important;}
+  #mapa-wrap:fullscreen .panel-result {left:0.625rem !important;}
+  #mapa-wrap:-webkit-full-screen .panel-result {left:0.625rem !important;}
+}
 /* ---- Escala en PC: recuadro pequeño y barra más larga (el celular conserva su tamaño) ---- */
 @media (min-width: 821px) {
   .escala-ctrl {font-size:0.6875rem; padding:0.3125rem 0.75rem 0.375rem;}
@@ -1364,8 +1367,6 @@ html, body {margin:0; padding:0; height:100%; overflow:hidden;
   .escala-lab span {line-height:0.875rem;}
   .escala-barra {height:0.3125rem;}
 }
-/* ---- Zoom táctil: el mapa recibe todos los gestos (pellizco) sin que el navegador los tome ---- */
-#mapa.leaflet-container {touch-action:none !important;}
 )---"
 
 JS_CODIGO <- r"---(
@@ -1436,13 +1437,11 @@ JS_CODIGO <- r"---(
 
   // Sombra sutil solo por fuera del contorno del Perú. Se dibuja en un canvas
   // (funciona igual en PC, Android y iPhone/Safari; los filtros SVG no funcionan en Safari).
-  var sombraCanvas = null, sombraRAF = null;
+  var sombraCanvas = null, sombraRAF = null, pellizcando = false;
 
   function sombraDibujar() {
     if (!sombraCanvas || !mapa || !DATA || !DATA.pais) { return; }
-    var tactil = window.matchMedia('(pointer: coarse)').matches;
-    // En celular el canvas es más liviano (menos resolución y menos trazos); la sombra se ve igual
-    var tam = mapa.getSize(), dpr = Math.min(window.devicePixelRatio || 1, tactil ? 1.25 : 2);
+    var tam = mapa.getSize(), dpr = window.devicePixelRatio || 1;
     var w = Math.round(tam.x * dpr), h = Math.round(tam.y * dpr);
     if (!w || !h) { return; }
     if (sombraCanvas.width !== w) { sombraCanvas.width = w; }
@@ -1481,18 +1480,17 @@ JS_CODIGO <- r"---(
     trazarPais();
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
-    ctx.strokeStyle = tactil ? 'rgba(0,0,0,0.11)' : 'rgba(0,0,0,0.055)';
-    var pasos = tactil ? 8 : 16, paso = tactil ? 3.6 : 1.8, i2;
+    ctx.strokeStyle = 'rgba(0,0,0,0.055)';
+    var pasos = 16, paso = 1.8, i2;
     for (i2 = 1; i2 <= pasos; i2++) {
       ctx.lineWidth = 2 * paso * i2;
       ctx.stroke();
     }
     ctx.restore();
-    sombraCanvas.style.opacity = '1';
   }
 
   function sombraProgramar() {
-    if (sombraRAF) { return; }
+    if (sombraRAF || pellizcando) { return; }
     sombraRAF = requestAnimationFrame(function () {
       sombraRAF = null;
       sombraDibujar();
@@ -1504,15 +1502,7 @@ JS_CODIGO <- r"---(
     sombraCanvas = document.createElement('canvas');
     sombraCanvas.className = 'sombra-pais-canvas';
     mapa.getContainer().appendChild(sombraCanvas);
-    if (window.matchMedia('(pointer: coarse)').matches) {
-      // Celular/tableta: no se redibuja mientras se arrastra o se hace zoom (eso trababa el pellizco
-      // en iPhone). La sombra se oculta durante el gesto y vuelve al terminar.
-      sombraCanvas.style.transition = 'opacity .15s';
-      mapa.on('movestart zoomstart', function () { sombraCanvas.style.opacity = '0'; });
-      mapa.on('moveend zoomend viewreset resize', sombraProgramar);
-    } else {
-      mapa.on('move zoom moveend zoomend viewreset resize', sombraProgramar);
-    }
+    mapa.on('move zoom moveend zoomend viewreset resize', sombraProgramar);
   }
 
   // Deja solo el contorno exterior del Perú continental: sin huecos, islas ni
@@ -3480,6 +3470,63 @@ JS_CODIGO <- r"---(
     }
   }
 
+  // ---- iPhone/iPad (Safari): zoom con dos dedos propio ----
+  // El Leaflet que trae el paquete de R es antiguo y no maneja bien los gestos de iOS reciente
+  // (en Android sí funciona). Solo en iOS se desactiva el pellizco de Leaflet y se resuelve aquí
+  // con los eventos táctiles nativos. En PC y Android no cambia nada.
+  function pellizcoIOS() {
+    var esIOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
+                (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (!esIOS || !mapa) { return; }
+    try { mapa.touchZoom.disable(); } catch (e0) {}
+    var c = mapa.getContainer(), ini = null, raf = 0, pend = null;
+    function dist(t) {
+      var dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+    function centro(t) {
+      var r = c.getBoundingClientRect();
+      return L.point((t[0].clientX + t[1].clientX) / 2 - r.left, (t[0].clientY + t[1].clientY) / 2 - r.top);
+    }
+    function aplicar() {
+      raf = 0;
+      if (!pend || !ini) { return; }
+      var p = pend;
+      pend = null;
+      try {
+        mapa._animatingZoom = false;   // por si un zoom anterior quedó a medias
+        // 1) el mapa sigue el movimiento de los dedos; 2) se acerca/aleja alrededor de ellos
+        var dx = ini.cen.x - p.cen.x, dy = ini.cen.y - p.cen.y;
+        if (dx || dy) { mapa.panBy([dx, dy], { animate: false }); }
+        mapa.setZoomAround(p.cen, p.z, { animate: false });
+        ini.cen = p.cen;
+      } catch (err) {
+        if (window.console) { console.error('Visor: pellizco', err); }
+      }
+    }
+    c.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 2) { return; }
+      ini = { d: dist(e.touches), z: mapa.getZoom(), cen: centro(e.touches) };
+      pellizcando = true;
+      if (sombraCanvas) { sombraCanvas.style.opacity = '0'; }
+      e.preventDefault();
+    }, { passive: false });
+    c.addEventListener('touchmove', function (e) {
+      if (!ini || e.touches.length !== 2 || !ini.d) { return; }
+      e.preventDefault();
+      pend = { cen: centro(e.touches), z: ini.z + Math.log(dist(e.touches) / ini.d) / Math.LN2 };
+      if (!raf) { raf = requestAnimationFrame(aplicar); }
+    }, { passive: false });
+    function fin(e) {
+      if (!ini || (e.touches && e.touches.length >= 2)) { return; }
+      ini = null; pend = null; pellizcando = false;
+      if (raf) { cancelAnimationFrame(raf); raf = 0; }
+      sombraProgramar();
+    }
+    c.addEventListener('touchend', fin, { passive: true });
+    c.addEventListener('touchcancel', fin, { passive: true });
+  }
+
   function iniciarInterno(m) {
     mapa = m;
     diagEstado.mapa = 'sí';
@@ -3492,10 +3539,7 @@ JS_CODIGO <- r"---(
     setTimeout(function () { ajustarMinZoom(); }, 1500);
     mapa.on('click', alClicMapa);
     mapa.on('click', alClicDibujo);
-    // Safari/iPhone: el navegador no debe hacer zoom a la página; el pellizco lo maneja el mapa
-    ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
-      mapa.getContainer().addEventListener(ev, function (e) { e.preventDefault(); }, { passive: false });
-    });
+    pellizcoIOS();
     // Al girar la rueda o hacer zoom, el relleno azul desaparece
     mapa.getContainer().addEventListener('wheel', quitarRelleno, { passive: true });
     mapa.on('zoomstart', quitarRelleno);
@@ -3577,8 +3621,18 @@ JS_CODIGO <- r"---(
       document.exitFullscreen();
     }
   };
-  document.addEventListener('fullscreenchange', function () {
-    if (mapa) { setTimeout(function () { mapa.invalidateSize(); }, 250); }
+  var ICO_EXPANDIR = '<svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M3 3h6v2H5v4H3V3zm12 0h6v6h-2V5h-4V3zM3 15h2v4h4v2H3v-6zm16 0h2v6h-6v-2h4v-4z"/></svg>';
+  var ICO_CONTRAER = '<svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M8 3h2v6H4V7h4V3zm6 0h2v4h4v2h-6V3zM4 15h6v6H8v-4H4v-2zm10 0h6v2h-4v4h-2v-6z"/></svg>';
+  ['fullscreenchange', 'webkitfullscreenchange'].forEach(function (ev) {
+    document.addEventListener(ev, function () {
+      var b = document.getElementById('btn_pantalla');
+      var activa = !!(document.fullscreenElement || document.webkitFullscreenElement);
+      if (b) {
+        b.innerHTML = activa ? ICO_CONTRAER : ICO_EXPANDIR;
+        b.title = activa ? 'Salir de pantalla completa' : 'Pantalla completa';
+      }
+      if (mapa) { setTimeout(function () { mapa.invalidateSize(); }, 250); }
+    });
   });
 
   // ---- Mi ubicación: busca el departamento, provincia y distrito que contienen el punto ----
@@ -3995,7 +4049,7 @@ ui <- function(request) {
   fluidPage(
     title = "SENAMHI | Visor de Índices Espectrales",
     tags$head(
-      tags$meta(name = "viewport", content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"),
+      tags$meta(name = "viewport", content = "width=device-width, initial-scale=1"),
       # Icono de la pestaña del navegador: archivo www/favicon.png (cuadrado). El ?v=1 obliga a refrescarlo.
       tags$link(rel = "icon", type = "image/png", href = "favicon.png?v=1"),
       tags$link(rel = "apple-touch-icon", href = "favicon.png?v=1"),
@@ -4127,7 +4181,7 @@ ui <- function(request) {
                                 tags$button(id = "mi_importar", type = "button", class = "mi",
                                             onclick = "elegirHerramienta('importar')",
                                             HTML(paste0(ICONO_IMPORTAR, "<span>Importar área de interés</span>"))))),
-                        tags$button(type = "button", class = "btn-icono",
+                        tags$button(id = "btn_pantalla", type = "button", class = "btn-icono",
                                     title = "Pantalla completa", onclick = "pantallaCompleta()",
                                     HTML(ICONO_PANTALLA)),
                         tags$button(type = "button", class = "btn-icono",
@@ -4231,7 +4285,7 @@ server <- function(input, output, session) {
   # ---- Mapa base: solo Google (se agrega desde JavaScript) -------------------
   output$mapa <- renderLeaflet({
     leaflet(options = leafletOptions(zoomSnap = 0.25, zoomDelta = 0.5, maxZoom = 20,
-                                     touchZoom = TRUE, attributionControl = FALSE)) |>
+                                     attributionControl = FALSE)) |>
       setView(lng = -75, lat = -9, zoom = 5) |>
       htmlwidgets::onRender("function(el, x) { window.mapaLeaflet = this; }")
   })
