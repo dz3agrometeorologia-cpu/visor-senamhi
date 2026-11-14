@@ -948,9 +948,8 @@ html, body {margin:0; padding:0; height:100%; overflow:hidden;
     height:2.25rem; font-size:0.75rem; padding:0.25rem 2px;}
 
   /* controles del mapa: se acomodan bajo los filtros (altura medida por JS) */
-  /* botones +/- visibles también en celular (alternativa al pellizco), bajo los filtros */
-  .leaflet-top.leaflet-left {margin-top:calc(var(--fh,7.375rem) + 0.625rem);}
-  .leaflet-bar a, .leaflet-touch .leaflet-bar a {width:2.5rem !important; height:2.5rem !important; line-height:2.5rem !important;}
+  .leaflet-top.leaflet-left {margin-top:0;}
+  .leaflet-control-zoom {display:none;}
   .leaflet-top.leaflet-right {margin-top:calc(var(--fh,7.375rem) + 0.625rem);}
   .ctrl-derecha {top:calc(var(--fh,7.375rem) + 3.875rem); right:0.625rem;}
   .selector-base button {height:2.25rem; font-size:0.8125rem;}
@@ -1354,12 +1353,16 @@ html, body {margin:0; padding:0; height:100%; overflow:hidden;
 #mapa-wrap:fullscreen .leaflet-bottom.leaflet-left {margin-left:0 !important;}
 #mapa-wrap:-webkit-full-screen .leaflet-top.leaflet-left,
 #mapa-wrap:-webkit-full-screen .leaflet-bottom.leaflet-left {margin-left:0 !important;}
-/* ---- Escala un poco más grande en PC (el celular conserva su tamaño) ---- */
+#mapa-wrap:fullscreen .filtros {left:0.625rem !important; max-width:calc(100% - 0.625rem - 10.9375rem) !important;}
+#mapa-wrap:-webkit-full-screen .filtros {left:0.625rem !important; max-width:calc(100% - 0.625rem - 10.9375rem) !important;}
+#mapa-wrap:fullscreen .panel-result {left:0.625rem !important;}
+#mapa-wrap:-webkit-full-screen .panel-result {left:0.625rem !important;}
+/* ---- Escala en PC: recuadro pequeño y barra más larga (el celular conserva su tamaño) ---- */
 @media (min-width: 821px) {
-  .escala-ctrl {font-size:0.8125rem; padding:0.4375rem 0.875rem 0.5rem;}
-  .escala-lab {height:1.0625rem;}
-  .escala-lab span {line-height:1.0625rem;}
-  .escala-barra {height:0.4375rem;}
+  .escala-ctrl {font-size:0.6875rem; padding:0.3125rem 0.75rem 0.375rem;}
+  .escala-lab {height:0.875rem;}
+  .escala-lab span {line-height:0.875rem;}
+  .escala-barra {height:0.3125rem;}
 }
 /* ---- Zoom táctil: el mapa recibe todos los gestos (pellizco) sin que el navegador los tome ---- */
 #mapa.leaflet-container {touch-action:none !important;}
@@ -1437,7 +1440,9 @@ JS_CODIGO <- r"---(
 
   function sombraDibujar() {
     if (!sombraCanvas || !mapa || !DATA || !DATA.pais) { return; }
-    var tam = mapa.getSize(), dpr = window.devicePixelRatio || 1;
+    var tactil = window.matchMedia('(pointer: coarse)').matches;
+    // En celular el canvas es más liviano (menos resolución y menos trazos); la sombra se ve igual
+    var tam = mapa.getSize(), dpr = Math.min(window.devicePixelRatio || 1, tactil ? 1.25 : 2);
     var w = Math.round(tam.x * dpr), h = Math.round(tam.y * dpr);
     if (!w || !h) { return; }
     if (sombraCanvas.width !== w) { sombraCanvas.width = w; }
@@ -1476,13 +1481,14 @@ JS_CODIGO <- r"---(
     trazarPais();
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
-    ctx.strokeStyle = 'rgba(0,0,0,0.055)';
-    var pasos = 16, paso = 1.8, i2;
+    ctx.strokeStyle = tactil ? 'rgba(0,0,0,0.11)' : 'rgba(0,0,0,0.055)';
+    var pasos = tactil ? 8 : 16, paso = tactil ? 3.6 : 1.8, i2;
     for (i2 = 1; i2 <= pasos; i2++) {
       ctx.lineWidth = 2 * paso * i2;
       ctx.stroke();
     }
     ctx.restore();
+    sombraCanvas.style.opacity = '1';
   }
 
   function sombraProgramar() {
@@ -1498,7 +1504,15 @@ JS_CODIGO <- r"---(
     sombraCanvas = document.createElement('canvas');
     sombraCanvas.className = 'sombra-pais-canvas';
     mapa.getContainer().appendChild(sombraCanvas);
-    mapa.on('move zoom moveend zoomend viewreset resize', sombraProgramar);
+    if (window.matchMedia('(pointer: coarse)').matches) {
+      // Celular/tableta: no se redibuja mientras se arrastra o se hace zoom (eso trababa el pellizco
+      // en iPhone). La sombra se oculta durante el gesto y vuelve al terminar.
+      sombraCanvas.style.transition = 'opacity .15s';
+      mapa.on('movestart zoomstart', function () { sombraCanvas.style.opacity = '0'; });
+      mapa.on('moveend zoomend viewreset resize', sombraProgramar);
+    } else {
+      mapa.on('move zoom moveend zoomend viewreset resize', sombraProgramar);
+    }
   }
 
   // Deja solo el contorno exterior del Perú continental: sin huecos, islas ni
@@ -3373,7 +3387,7 @@ JS_CODIGO <- r"---(
         var movil = window.matchMedia('(max-width: 820px)').matches;
         // PC y celular: el recuadro blanco se ajusta a la barra (CSS: width:max-content),
         // así nada se sale del fondo ni quedan espacios vacíos
-        maxPx = movil ? 110 : 160;
+        maxPx = movil ? 110 : 180;
         var tam = map.getSize();
         if (!tam.x || !tam.y) { return; }
         var y = tam.y / 2;
