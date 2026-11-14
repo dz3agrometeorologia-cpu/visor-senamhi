@@ -948,8 +948,9 @@ html, body {margin:0; padding:0; height:100%; overflow:hidden;
     height:2.25rem; font-size:0.75rem; padding:0.25rem 2px;}
 
   /* controles del mapa: se acomodan bajo los filtros (altura medida por JS) */
-  .leaflet-top.leaflet-left {margin-top:0;}
-  .leaflet-control-zoom {display:none;}
+  /* botones +/- visibles también en celular (alternativa al pellizco), bajo los filtros */
+  .leaflet-top.leaflet-left {margin-top:calc(var(--fh,7.375rem) + 0.625rem);}
+  .leaflet-bar a, .leaflet-touch .leaflet-bar a {width:2.5rem !important; height:2.5rem !important; line-height:2.5rem !important;}
   .leaflet-top.leaflet-right {margin-top:calc(var(--fh,7.375rem) + 0.625rem);}
   .ctrl-derecha {top:calc(var(--fh,7.375rem) + 3.875rem); right:0.625rem;}
   .selector-base button {height:2.25rem; font-size:0.8125rem;}
@@ -1347,6 +1348,21 @@ html, body {margin:0; padding:0; height:100%; overflow:hidden;
 .ventana-valores .asa:hover, .ventana-coord .asa:hover, .panel-result .asa:hover {
   background-color: #fdc50f;
 }
+
+/* ---- Pantalla completa: no hay panel lateral, así que el zoom (+/-) y la escala van al borde izquierdo ---- */
+#mapa-wrap:fullscreen .leaflet-top.leaflet-left,
+#mapa-wrap:fullscreen .leaflet-bottom.leaflet-left {margin-left:0 !important;}
+#mapa-wrap:-webkit-full-screen .leaflet-top.leaflet-left,
+#mapa-wrap:-webkit-full-screen .leaflet-bottom.leaflet-left {margin-left:0 !important;}
+/* ---- Escala un poco más grande en PC (el celular conserva su tamaño) ---- */
+@media (min-width: 821px) {
+  .escala-ctrl {font-size:0.8125rem; padding:0.4375rem 0.875rem 0.5rem;}
+  .escala-lab {height:1.0625rem;}
+  .escala-lab span {line-height:1.0625rem;}
+  .escala-barra {height:0.4375rem;}
+}
+/* ---- Zoom táctil: el mapa recibe todos los gestos (pellizco) sin que el navegador los tome ---- */
+#mapa.leaflet-container {touch-action:none !important;}
 )---"
 
 JS_CODIGO <- r"---(
@@ -3357,7 +3373,7 @@ JS_CODIGO <- r"---(
         var movil = window.matchMedia('(max-width: 820px)').matches;
         // PC y celular: el recuadro blanco se ajusta a la barra (CSS: width:max-content),
         // así nada se sale del fondo ni quedan espacios vacíos
-        maxPx = movil ? 110 : 130;
+        maxPx = movil ? 110 : 160;
         var tam = map.getSize();
         if (!tam.x || !tam.y) { return; }
         var y = tam.y / 2;
@@ -3462,6 +3478,10 @@ JS_CODIGO <- r"---(
     setTimeout(function () { ajustarMinZoom(); }, 1500);
     mapa.on('click', alClicMapa);
     mapa.on('click', alClicDibujo);
+    // Safari/iPhone: el navegador no debe hacer zoom a la página; el pellizco lo maneja el mapa
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
+      mapa.getContainer().addEventListener(ev, function (e) { e.preventDefault(); }, { passive: false });
+    });
     // Al girar la rueda o hacer zoom, el relleno azul desaparece
     mapa.getContainer().addEventListener('wheel', quitarRelleno, { passive: true });
     mapa.on('zoomstart', quitarRelleno);
@@ -3474,6 +3494,9 @@ JS_CODIGO <- r"---(
       ubic = L.circleMarker(e.latlng, {
         radius: 7, color: '#ffffff', weight: 2, fillColor: '#1976d2', fillOpacity: 1
       }).addTo(mapa);
+      try { ubicarEnFiltros(e.latlng); } catch (err) {
+        if (window.console) { console.error('Visor: no se pudo ubicar en los filtros', err); }
+      }
     });
     mapa.on('locationerror', function () {
       alert('No se pudo obtener tu ubicación.');
@@ -3543,6 +3566,41 @@ JS_CODIGO <- r"---(
   document.addEventListener('fullscreenchange', function () {
     if (mapa) { setTimeout(function () { mapa.invalidateSize(); }, 250); }
   });
+
+  // ---- Mi ubicación: busca el departamento, provincia y distrito que contienen el punto ----
+  function puntoEnGeom(lng, lat, g) {
+    var polis = g.type === 'Polygon' ? [g.coordinates] : (g.type === 'MultiPolygon' ? g.coordinates : []);
+    var i, k, hueco;
+    for (i = 0; i < polis.length; i++) {
+      if (!puntoEnAnillo([lng, lat], polis[i][0])) { continue; }
+      hueco = false;
+      for (k = 1; k < polis[i].length; k++) {
+        if (puntoEnAnillo([lng, lat], polis[i][k])) { hueco = true; break; }
+      }
+      if (!hueco) { return true; }
+    }
+    return false;
+  }
+  function unidadEn(gj, lng, lat) {
+    var i, f;
+    for (i = 0; i < gj.features.length; i++) {
+      f = gj.features[i];
+      if (f.geometry && puntoEnGeom(lng, lat, f.geometry)) { return f.properties; }
+    }
+    return null;
+  }
+  // Cambia los filtros al lugar donde está la persona SIN mover el mapa (el mapa ya fue a su ubicación)
+  function ubicarEnFiltros(ll) {
+    if (!DATA || !DATA.dist) { return; }
+    var u = unidadEn(DATA.dist, ll.lng, ll.lat);
+    if (u) {
+      estado = { dep: String(u.IDDPTO), prov: String(u.IDPROV), dist: String(u.IDDIST) };
+    } else {
+      estado = { dep: '', prov: '', dist: '' };
+      avisoMapa('Tu ubicación está fuera de la zona de trabajo (DZ3).', 5000, false);
+    }
+    sincronizarListas(); render(); construirMini(); actualizarMini();
+  }
 
   window.miUbicacion = function () {
     if (mapa) { mapa.locate({ setView: true, maxZoom: 13 }); }
@@ -3923,7 +3981,7 @@ ui <- function(request) {
   fluidPage(
     title = "SENAMHI | Visor de Índices Espectrales",
     tags$head(
-      tags$meta(name = "viewport", content = "width=device-width, initial-scale=1"),
+      tags$meta(name = "viewport", content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"),
       # Icono de la pestaña del navegador: archivo www/favicon.png (cuadrado). El ?v=1 obliga a refrescarlo.
       tags$link(rel = "icon", type = "image/png", href = "favicon.png?v=1"),
       tags$link(rel = "apple-touch-icon", href = "favicon.png?v=1"),
@@ -4159,7 +4217,7 @@ server <- function(input, output, session) {
   # ---- Mapa base: solo Google (se agrega desde JavaScript) -------------------
   output$mapa <- renderLeaflet({
     leaflet(options = leafletOptions(zoomSnap = 0.25, zoomDelta = 0.5, maxZoom = 20,
-                                     attributionControl = FALSE)) |>
+                                     touchZoom = TRUE, attributionControl = FALSE)) |>
       setView(lng = -75, lat = -9, zoom = 5) |>
       htmlwidgets::onRender("function(el, x) { window.mapaLeaflet = this; }")
   })
