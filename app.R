@@ -1356,7 +1356,7 @@ html, body {margin:0; padding:0; height:100%; overflow:hidden;
 }
 /* Celular: "pantalla completa" propia (sin el aviso del navegador): el mapa cubre toda la ventana */
 body.pseudo-completa #mapa-wrap {position:fixed !important; top:0; left:0; right:0; bottom:0;
-  width:100% !important; height:100% !important; z-index:99999;}
+  width:100% !important; height:100vh !important; height:100dvh !important; z-index:99999;}
 /* ---- Pantalla completa en PC: filtros, zoom (+/-) y escala van a la izquierda (solo PC; el celular no cambia) ---- */
 @media (min-width: 821px) {
   #mapa-wrap:fullscreen .leaflet-top.leaflet-left,
@@ -3640,12 +3640,13 @@ JS_CODIGO <- r"---(
   }
   window.pantallaCompleta = function () {
     var el = document.getElementById('mapa-wrap');
+    var movil = window.matchMedia('(max-width: 820px)').matches;
     var pedir = el.requestFullscreen || el.webkitRequestFullscreen;
     var salir = document.exitFullscreen || document.webkitExitFullscreen;
     var real = document.fullscreenElement || document.webkitFullscreenElement;
     if (real) { if (salir) { salir.call(document); } return; }
-    if (!pedir || !(document.fullscreenEnabled || document.webkitFullscreenEnabled)) {
-      // iPhone/Safari (no permite pantalla completa en un elemento): el mapa cubre toda la ventana
+    if (movil || !pedir || !(document.fullscreenEnabled || document.webkitFullscreenEnabled)) {
+      // Celular: el mapa cubre toda la ventana (así el navegador no muestra su aviso de pantalla completa)
       document.body.classList.toggle('pseudo-completa');
       estadoPantalla();
     } else {
