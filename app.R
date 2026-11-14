@@ -3640,13 +3640,12 @@ JS_CODIGO <- r"---(
   }
   window.pantallaCompleta = function () {
     var el = document.getElementById('mapa-wrap');
-    var movil = window.matchMedia('(max-width: 820px)').matches;
     var pedir = el.requestFullscreen || el.webkitRequestFullscreen;
     var salir = document.exitFullscreen || document.webkitExitFullscreen;
     var real = document.fullscreenElement || document.webkitFullscreenElement;
     if (real) { if (salir) { salir.call(document); } return; }
-    if (movil || !pedir) {
-      // Celular: el mapa cubre toda la ventana; así el navegador no muestra su aviso inferior
+    if (!pedir || !(document.fullscreenEnabled || document.webkitFullscreenEnabled)) {
+      // iPhone/Safari (no permite pantalla completa en un elemento): el mapa cubre toda la ventana
       document.body.classList.toggle('pseudo-completa');
       estadoPantalla();
     } else {
